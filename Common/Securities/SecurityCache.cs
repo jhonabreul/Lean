@@ -146,7 +146,8 @@ namespace QuantConnect.Securities
         private void AddDataImpl(BaseData data, bool cacheByType)
         {
             var tick = data as Tick;
-            if (tick?.TickType == TickType.OpenInterest)
+            var t = tick?.LastOrDefault() as TickDataPoint;
+            if (t?.TickType == TickType.OpenInterest)
             {
                 if (cacheByType)
                 {
@@ -180,20 +181,20 @@ namespace QuantConnect.Securities
 
             if (tick != null)
             {
-                if (tick.Value != 0) Price = tick.Value;
+                if (t.Value != 0) Price = t.Value;
 
-                switch (tick.TickType)
+                switch (t.TickType)
                 {
                     case TickType.Trade:
-                        if (tick.Quantity != 0) Volume = tick.Quantity;
+                        if (t.Quantity != 0) Volume = t.Quantity;
                         break;
 
                     case TickType.Quote:
-                        if (tick.BidPrice != 0) BidPrice = tick.BidPrice;
-                        if (tick.BidSize != 0) BidSize = tick.BidSize;
+                        if (t.BidPrice != 0) BidPrice = t.BidPrice;
+                        if (t.BidSize != 0) BidSize = t.BidSize;
 
-                        if (tick.AskPrice != 0) AskPrice = tick.AskPrice;
-                        if (tick.AskSize != 0) AskSize = tick.AskSize;
+                        if (t.AskPrice != 0) AskPrice = t.AskPrice;
+                        if (t.AskSize != 0) AskSize = t.AskSize;
                         break;
                 }
                 return;
@@ -248,7 +249,7 @@ namespace QuantConnect.Securities
         {
             if (dataType == typeof(Tick))
             {
-                var tick = data[data.Count - 1] as Tick;
+                var tick = (data[data.Count - 1] as Tick).LastOrDefault() as TickDataPoint;
                 switch (tick?.TickType)
                 {
                     case TickType.Trade:
@@ -375,7 +376,7 @@ namespace QuantConnect.Securities
         {
             if (data.GetType() == typeof(Tick))
             {
-                var tick = data as Tick;
+                var tick = (data as Tick).LastOrDefault() as TickDataPoint;
                 switch (tick?.TickType)
                 {
                     case TickType.Trade:

@@ -1039,10 +1039,10 @@ namespace QuantConnect
         /// <remarks>For performance we implement this method based on <see cref="Add{TKey,TElement,TCollection}"/></remarks>
         public static void Add(this Ticks dictionary, Symbol key, Tick tick)
         {
-            List<Tick> list;
+            Tick list;
             if (!dictionary.TryGetValue(key, out list))
             {
-                list = new List<Tick>(1);
+                list = new Tick();
                 dictionary.Add(key, list);
             }
             list.Add(tick);
@@ -3211,36 +3211,39 @@ namespace QuantConnect
                         break;
                     }
 
-                    var tick = data as Tick;
-                    if (tick == null || tick.TickType == TickType.OpenInterest)
+                    var ticks = data as Tick;
+                    foreach (TickDataPoint tick in ticks)
                     {
-                        break;
-                    }
+                        if (tick == null || tick.TickType == TickType.OpenInterest)
+                        {
+                            continue;
+                        }
 
-                    if (tick.TickType == TickType.Trade)
-                    {
-                        tick.Value = factor(tick.Value);
-                        tick.Quantity = Math.Round(tick.Quantity * volumeFactor);
-                        break;
-                    }
+                        if (tick.TickType == TickType.Trade)
+                        {
+                            tick.Value = factor(tick.Value);
+                            tick.Quantity = Math.Round(tick.Quantity * volumeFactor);
+                            continue;
+                        }
 
-                    tick.BidPrice = tick.BidPrice != 0 ? factor(tick.BidPrice) : 0;
-                    tick.BidSize = Math.Round(tick.BidSize * volumeFactor);
-                    tick.AskPrice = tick.AskPrice != 0 ? factor(tick.AskPrice) : 0;
-                    tick.AskSize = Math.Round(tick.AskSize * volumeFactor);
+                        tick.BidPrice = tick.BidPrice != 0 ? factor(tick.BidPrice) : 0;
+                        tick.BidSize = Math.Round(tick.BidSize * volumeFactor);
+                        tick.AskPrice = tick.AskPrice != 0 ? factor(tick.AskPrice) : 0;
+                        tick.AskSize = Math.Round(tick.AskSize * volumeFactor);
 
-                    if (tick.BidPrice == 0)
-                    {
-                        tick.Value = tick.AskPrice;
-                        break;
-                    }
-                    if (tick.AskPrice == 0)
-                    {
-                        tick.Value = tick.BidPrice;
-                        break;
-                    }
+                        if (tick.BidPrice == 0)
+                        {
+                            tick.Value = tick.AskPrice;
+                            continue;
+                        }
+                        if (tick.AskPrice == 0)
+                        {
+                            tick.Value = tick.BidPrice;
+                            continue;
+                        }
 
-                    tick.Value = (tick.BidPrice + tick.AskPrice) / 2m;
+                        tick.Value = (tick.BidPrice + tick.AskPrice) / 2m;
+                    }
                     break;
                 case MarketDataType.QuoteBar:
                     var quoteBar = data as QuoteBar;

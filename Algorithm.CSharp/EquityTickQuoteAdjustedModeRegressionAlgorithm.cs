@@ -51,21 +51,21 @@ namespace QuantConnect.Algorithm.CSharp
                 return;
             }
 
-            foreach (var tick in data.Ticks[_ibm])
-            {
-                if (tick.BidPrice != 0 && !_bought && ((tick.Value - tick.BidPrice) <= 0.05m))
-                {
-                    SetHoldings(_ibm, 1);
-                    _bought = true;
-                    return;
-                }
-                if (tick.AskPrice != 0 && _bought && !_sold && Math.Abs((double)tick.Value - (double)tick.AskPrice) <= 0.05)
-                {
-                    Liquidate(_ibm);
-                    _sold = true;
-                    return;
-                }
-            }
+            //foreach (var tick in data.Ticks[_ibm])
+            //{
+            //    if (tick.BidPrice != 0 && !_bought && ((tick.Value - tick.BidPrice) <= 0.05m))
+            //    {
+            //        SetHoldings(_ibm, 1);
+            //        _bought = true;
+            //        return;
+            //    }
+            //    if (tick.AskPrice != 0 && _bought && !_sold && Math.Abs((double)tick.Value - (double)tick.AskPrice) <= 0.05)
+            //    {
+            //        Liquidate(_ibm);
+            //        _sold = true;
+            //        return;
+            //    }
+            //}
         }
 
         /// <summary>

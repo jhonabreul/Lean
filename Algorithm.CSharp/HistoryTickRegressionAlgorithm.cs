@@ -33,17 +33,17 @@ namespace QuantConnect.Algorithm.CSharp
         {
             SetStartDate(2013, 10, 11);
             SetEndDate(2013, 10, 11);
-
+            
             _symbol = AddEquity("SPY", Resolution.Tick).Symbol;
         }
 
         public override void OnEndOfAlgorithm()
         {
             var history = History<Tick>(_symbol, StartDate, EndDate, Resolution.Tick);
-            var quotes = history.Where(x => x.TickType == TickType.Quote).ToList();
-            var trades = history.Where(x => x.TickType == TickType.Trade).ToList();
+            var quotes = history.Aggregate(0, (c, x) => c + x.Count(y => (y as TickDataPoint).TickType == TickType.Quote));
+            var trades = history.Aggregate(0, (c, x) => c + x.Count(y => (y as TickDataPoint).TickType == TickType.Trade));
 
-            if (quotes.Count == 0 || trades.Count == 0)
+            if (quotes == 0 || trades == 0)
             {
                 throw new Exception("Expected to find at least one tick of each type (quote and trade)");
             }

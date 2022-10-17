@@ -17,6 +17,7 @@
 using System;
 using QuantConnect.Data.Market;
 using Python.Runtime;
+using System.Linq;
 
 namespace QuantConnect.Data.Consolidators
 {
@@ -78,7 +79,7 @@ namespace QuantConnect.Data.Consolidators
         /// <returns>True if the consolidator should process this data, false otherwise</returns>
         protected override bool ShouldProcess(Tick data)
         {
-            return data.TickType == TickType.Quote;
+            return data.Any(x => (x as TickDataPoint).TickType == TickType.Quote);
         }
 
         /// <summary>
@@ -89,22 +90,25 @@ namespace QuantConnect.Data.Consolidators
         /// <param name="data">The new data</param>
         protected override void AggregateBar(ref QuoteBar workingBar, Tick data)
         {
-            if (workingBar == null)
+            foreach (TickDataPoint tick in data)
             {
-                workingBar = new QuoteBar(GetRoundedBarTime(data), data.Symbol, null, decimal.Zero, null, decimal.Zero, Period);
-
-                // open ask and bid should match previous close ask and bid
-                if (Consolidated != null)
+                if (workingBar == null)
                 {
-                    // note that we will only fill forward previous close ask and bid when a new data point comes in and we generate a new working bar which is not a fill forward bar
-                    var previous = Consolidated as QuoteBar;
-                    workingBar.Update(decimal.Zero, previous.Bid?.Close ?? decimal.Zero, previous.Ask?.Close ?? decimal.Zero, decimal.Zero, previous.LastBidSize, previous.LastAskSize);
-                }
-            }
+                    workingBar = new QuoteBar(GetRoundedBarTime(tick), tick.Symbol, null, decimal.Zero, null, decimal.Zero, Period);
 
-            // update the bid and ask
-            workingBar.Update(decimal.Zero, data.BidPrice, data.AskPrice, decimal.Zero, data.BidSize, data.AskSize);
-            if (!Period.HasValue) workingBar.EndTime = GetRoundedBarTime(data.EndTime);
+                    // open ask and bid should match previous close ask and bid
+                    if (Consolidated != null)
+                    {
+                        // note that we will only fill forward previous close ask and bid when a new data point comes in and we generate a new working bar which is not a fill forward bar
+                        var previous = Consolidated as QuoteBar;
+                        workingBar.Update(decimal.Zero, previous.Bid?.Close ?? decimal.Zero, previous.Ask?.Close ?? decimal.Zero, decimal.Zero, previous.LastBidSize, previous.LastAskSize);
+                    }
+                }
+
+                // update the bid and ask
+                workingBar.Update(decimal.Zero, tick.BidPrice, tick.AskPrice, decimal.Zero, tick.BidSize, tick.AskSize);
+                if (!Period.HasValue) workingBar.EndTime = GetRoundedBarTime(tick.EndTime);
+            }
         }
     }
 }

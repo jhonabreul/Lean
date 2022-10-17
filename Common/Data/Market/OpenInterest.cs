@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -24,7 +24,7 @@ namespace QuantConnect.Data.Market
     /// Defines a data type that represents open interest for given security
     /// </summary>
     [ProtoContract(SkipConstructor = true)]
-    public class OpenInterest : Tick
+    public class OpenInterest : TickDataPoint
     {
         /// <summary>
         /// Initializes a new instance of the OpenInterest class

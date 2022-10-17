@@ -741,11 +741,14 @@ namespace QuantConnect.Securities
             }
 
             // make sure to modify bid/ask as well for tradebar data types
-            var tick = next as Tick;
-            if (tick != null)
+            var ticks = next as Tick;
+            if (ticks != null)
             {
-                tick.AskPrice *= split.SplitFactor;
-                tick.BidPrice *= split.SplitFactor;
+                foreach (TickDataPoint tick in ticks)
+                {
+                    tick.AskPrice *= split.SplitFactor;
+                    tick.BidPrice *= split.SplitFactor;
+                }
             }
 
             security.SetMarketPrice(next);

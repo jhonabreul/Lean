@@ -352,24 +352,28 @@ namespace QuantConnect.Data
             object dictionary;
             if (!instance._dataByType.TryGetValue(type, out dictionary))
             {
-                var requestedOpenInterest = type == typeof(OpenInterest);
-                if (type == typeof(Tick) || requestedOpenInterest)
-                {
-                    var dataDictionaryCache = GenericDataDictionary.Get(type, isPythonData: false);
-                    dictionary = Activator.CreateInstance(dataDictionaryCache.GenericType);
+                //var requestedOpenInterest = type == typeof(OpenInterest);
+                //if (type == typeof(Tick) || requestedOpenInterest)
+                //{
+                //    var dataDictionaryCache = GenericDataDictionary.Get(type, isPythonData: false);
+                //    dictionary = Activator.CreateInstance(dataDictionaryCache.GenericType);
 
-                    foreach (var data in instance.Ticks)
-                    {
-                        var symbol = data.Key;
-                        // preserving existing behavior we will return the last data point, users expect a 'DataDictionary<Tick> : IDictionary<Symbol, Tick>'.
-                        // openInterest is stored with the Ticks collection
-                        var lastDataPoint = data.Value.LastOrDefault(tick => requestedOpenInterest && tick.TickType == TickType.OpenInterest || !requestedOpenInterest && tick.TickType != TickType.OpenInterest);
-                        if (lastDataPoint == null)
-                        {
-                            continue;
-                        }
-                        dataDictionaryCache.MethodInfo.Invoke(dictionary, new object[] { symbol, lastDataPoint });
-                    }
+                //    foreach (var data in instance.Ticks)
+                //    {
+                //        var symbol = data.Key;
+                //        // preserving existing behavior we will return the last data point, users expect a 'DataDictionary<Tick> : IDictionary<Symbol, Tick>'.
+                //        // openInterest is stored with the Ticks collection
+                //        var lastDataPoint = data.Value.LastOrDefault(tick => requestedOpenInterest && tick.TickType == TickType.OpenInterest || !requestedOpenInterest && tick.TickType != TickType.OpenInterest);
+                //        if (lastDataPoint == null)
+                //        {
+                //            continue;
+                //        }
+                //        dataDictionaryCache.MethodInfo.Invoke(dictionary, new object[] { symbol, lastDataPoint });
+                //    }
+                //}
+                if (type == typeof(Tick))
+                {
+                    dictionary = instance.Ticks;
                 }
                 else if (type == typeof(TradeBar))
                 {
@@ -592,10 +596,10 @@ namespace QuantConnect.Data
             var ticks = new Ticks(time);
             foreach (var tick in data.OfType<Tick>())
             {
-                List<Tick> listTicks;
+                Tick listTicks;
                 if (!ticks.TryGetValue(tick.Symbol, out listTicks))
                 {
-                    ticks[tick.Symbol] = listTicks = new List<Tick>();
+                    ticks[tick.Symbol] = listTicks = new Tick();
                 }
                 listTicks.Add(tick);
             }

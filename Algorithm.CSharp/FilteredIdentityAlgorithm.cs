@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -54,10 +54,10 @@ namespace QuantConnect.Algorithm.CSharp
         private bool Filter(IBaseData data)
         {
             var tick = data as Tick;
-            if (tick != null)
-            {
-                return tick.TickType == TickType.Trade;
-            }
+            //if (tick != null)
+            //{
+            //    return tick.TickType == TickType.Trade;
+            //}
 
             return true;
         }

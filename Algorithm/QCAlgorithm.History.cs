@@ -632,7 +632,7 @@ namespace QuantConnect.Algorithm
                 throw new ArgumentException($"No history data could be fetched. " +
                     $"This could be due to the specified security not being of the requested type. Symbol: {symbol} Requested Type: {typeof(T).Name}");
             }
-
+            
             return History(requests).Get<T>(symbol).Memoize();
         }
 

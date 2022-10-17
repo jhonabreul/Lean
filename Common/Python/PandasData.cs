@@ -168,7 +168,7 @@ namespace QuantConnect.Python
             }
             else
             {
-                var ticks = new List<Tick> { baseData as Tick };
+                var ticks = baseData as Tick;
                 var tradeBar = baseData as TradeBar;
                 var quoteBar = baseData as QuoteBar;
                 Add(ticks, tradeBar, quoteBar);
@@ -181,7 +181,7 @@ namespace QuantConnect.Python
         /// <param name="ticks">List of <see cref="Tick"/> object that contains tick information of the security</param>
         /// <param name="tradeBar"><see cref="TradeBar"/> object that contains trade bar information of the security</param>
         /// <param name="quoteBar"><see cref="QuoteBar"/> object that contains quote bar information of the security</param>
-        public void Add(IEnumerable<Tick> ticks, TradeBar tradeBar, QuoteBar quoteBar)
+        public void Add(Tick ticks, TradeBar tradeBar, QuoteBar quoteBar)
         {
             if (tradeBar != null)
             {
@@ -221,10 +221,8 @@ namespace QuantConnect.Python
             }
             if (ticks != null)
             {
-                foreach (var tick in ticks)
+                foreach (TickDataPoint tick in ticks)
                 {
-                    if (tick == null) continue;
-
                     var time = tick.EndTime;
 
                     // We will fill some series with null for tick types that don't have a value for that series, so that we make sure
@@ -239,7 +237,7 @@ namespace QuantConnect.Python
                     }
                     else
                     {
-                        // Trade and open interest ticks don't have these values, so we'll fill them with null.
+                        // Trade and open interest ts don't have these values, so we'll fill them with null.
                         AddToSeries("askprice", time, null);
                         AddToSeries("asksize", time, null);
                         AddToSeries("bidprice", time, null);

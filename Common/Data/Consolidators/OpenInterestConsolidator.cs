@@ -16,6 +16,8 @@
 using System;
 using QuantConnect.Data.Market;
 using Python.Runtime;
+using QLNet;
+using System.Linq;
 
 namespace QuantConnect.Data.Consolidators
 {
@@ -88,7 +90,7 @@ namespace QuantConnect.Data.Consolidators
         /// <returns>True if the consolidator should process this data, false otherwise</returns>
         protected override bool ShouldProcess(Tick tick)
         {
-            return tick.TickType == TickType.OpenInterest;
+            return tick.Any(t => (t as TickDataPoint).TickType == TickType.OpenInterest);
         }
 
         /// <summary>

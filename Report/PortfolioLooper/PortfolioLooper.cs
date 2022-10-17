@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -347,7 +347,7 @@ namespace QuantConnect.Report
                     lastFillTime = order.LastFillTime.Value;
                 }
 
-                var tick = new Tick { Quantity = order.Quantity, AskPrice = order.Price, BidPrice = order.Price, Value = order.Price, EndTime = lastFillTime };
+                var tick = new TickDataPoint { Quantity = order.Quantity, AskPrice = order.Price, BidPrice = order.Price, Value = order.Price, EndTime = lastFillTime };
                 var tradeBar = new TradeBar
                 {
                     Open = order.Price,

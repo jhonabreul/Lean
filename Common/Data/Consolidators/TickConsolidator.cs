@@ -16,6 +16,7 @@
 using System;
 using QuantConnect.Data.Market;
 using Python.Runtime;
+using System.Linq;
 
 namespace QuantConnect.Data.Consolidators
 {
@@ -78,7 +79,7 @@ namespace QuantConnect.Data.Consolidators
         /// <returns>True if the consolidator should process this data, false otherwise</returns>
         protected override bool ShouldProcess(Tick data)
         {
-            return data.TickType == TickType.Trade;
+            return data.Any(t => (t as TickDataPoint).TickType == TickType.Trade);
         }
 
         /// <summary>
@@ -89,24 +90,27 @@ namespace QuantConnect.Data.Consolidators
         /// <param name="data">The new data</param>
         protected override void AggregateBar(ref TradeBar workingBar, Tick data)
         {
-            if (workingBar == null)
+            foreach (TickDataPoint tick in data)
             {
-                workingBar = new TradeBar(GetRoundedBarTime(data),
-                    data.Symbol,
-                    data.Value,
-                    data.Value,
-                    data.Value,
-                    data.Value,
-                    data.Quantity,
-                    Period);
-            }
-            else
-            {
-                //Aggregate the working bar
-                workingBar.Close = data.Value;
-                workingBar.Volume += data.Quantity;
-                if (data.Value < workingBar.Low) workingBar.Low = data.Value;
-                if (data.Value > workingBar.High) workingBar.High = data.Value;
+                if (workingBar == null)
+                {
+                    workingBar = new TradeBar(GetRoundedBarTime(tick),
+                        tick.Symbol,
+                        tick.Value,
+                        tick.Value,
+                        tick.Value,
+                        tick.Value,
+                        tick.Quantity,
+                        Period);
+                }
+                else
+                {
+                    //Aggregate the working bar
+                    workingBar.Close = tick.Value;
+                    workingBar.Volume += tick.Quantity;
+                    if (tick.Value < workingBar.Low) workingBar.Low = tick.Value;
+                    if (tick.Value > workingBar.High) workingBar.High = tick.Value;
+                }
             }
         }
     }

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -54,7 +54,8 @@ namespace QuantConnect.Orders.Fills
                 .Select(x => x.Type).ToList();
 
             // Tick
-            var tick = asset.Cache.GetData<Tick>();
+            var ticks = asset.Cache.GetData<Tick>();
+            var tick = ticks?.LastOrDefault() as TickDataPoint;
             if (subscriptionTypes.Contains(typeof(Tick)) && tick != null)
             {
                 var price = direction == OrderDirection.Sell ? tick.BidPrice : tick.AskPrice;

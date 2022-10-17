@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -140,14 +140,22 @@ namespace QuantConnect.Lean.Engine.DataFeeds
                         // for non tick resolution subscriptions drop suspicious ticks
                         if (kvp.Key.Resolution != Resolution.Tick)
                         {
-                            var tick = input as Tick;
-                            if (tick != null && tick.Suspicious)
+                            var ticks = input as Tick;
+                            if (ticks != null)
                             {
-                                continue;
+                                foreach (TickDataPoint tick in ticks)
+                                {
+                                    if (!tick.Suspicious)
+                                    {
+                                        kvp.Value.Update(tick);
+                                    }
+                                }
                             }
                         }
-
-                        kvp.Value.Update(input);
+                        else
+                        {
+                            kvp.Value.Update(input);
+                        }                        
                     }
                 }
             }

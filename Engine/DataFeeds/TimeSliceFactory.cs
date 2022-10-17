@@ -197,7 +197,15 @@ namespace QuantConnect.Lean.Engine.DataFeeds
                                     {
                                         ticks = new Ticks(algorithmTime);
                                     }
-                                    ticks.Add(baseData.Symbol, (Tick)baseData);
+                                    Tick tickList; 
+                                    if (!ticks.TryGetValue(baseData.Symbol, out tickList))
+                                    {
+                                        ticks.Add(baseData.Symbol, (Tick)baseData);
+                                    }
+                                    else
+                                    {
+                                        tickList.AddRange((Tick)baseData);
+                                    }
                                     break;
 
                                 case MarketDataType.TradeBar:
@@ -255,9 +263,15 @@ namespace QuantConnect.Lean.Engine.DataFeeds
 
                             // this is data used to update consolidators
                             // do not add it if it is a Suspicious tick
-                            if (tick == null || !tick.Suspicious)
+                            if (tick != null)
                             {
-                                consolidatorUpdate.Add(baseData);
+                                foreach (TickDataPoint t in tick)
+                                {
+                                    if (!t.Suspicious)
+                                    {
+                                        consolidatorUpdate.Add(baseData);
+                                    }
+                                }
                             }
                         }
 
@@ -304,9 +318,20 @@ namespace QuantConnect.Lean.Engine.DataFeeds
 
                         // this is the data used set market prices
                         // do not add it if it is a Suspicious tick
-                        if (tick != null && tick.Suspicious) continue;
-
-                        securityUpdate.Add(baseData);
+                        if (tick != null)
+                        {
+                            foreach (TickDataPoint t in tick)
+                            {
+                                if (!t.Suspicious)
+                                {
+                                    securityUpdate.Add(baseData);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            securityUpdate.Add(baseData);
+                        }
 
                         // option underlying security update
                         if (!packet.Configuration.IsInternalFeed)
@@ -571,30 +596,33 @@ namespace QuantConnect.Lean.Engine.DataFeeds
             }
         }
 
-        private static void UpdateContract(OptionContract contract, Tick tick)
+        private static void UpdateContract(OptionContract contract, Tick ticks)
         {
-            if (tick.TickType == TickType.Trade)
+            foreach (TickDataPoint tick in ticks)
             {
-                contract.LastPrice = tick.Price;
-            }
-            else if (tick.TickType == TickType.Quote)
-            {
-                if (tick.AskPrice != 0m)
+                if (tick.TickType == TickType.Trade)
                 {
-                    contract.AskPrice = tick.AskPrice;
-                    contract.AskSize = (long)tick.AskSize;
+                    contract.LastPrice = tick.Price;
                 }
-                if (tick.BidPrice != 0m)
+                else if (tick.TickType == TickType.Quote)
                 {
-                    contract.BidPrice = tick.BidPrice;
-                    contract.BidSize = (long)tick.BidSize;
+                    if (tick.AskPrice != 0m)
+                    {
+                        contract.AskPrice = tick.AskPrice;
+                        contract.AskSize = (long)tick.AskSize;
+                    }
+                    if (tick.BidPrice != 0m)
+                    {
+                        contract.BidPrice = tick.BidPrice;
+                        contract.BidSize = (long)tick.BidSize;
+                    }
                 }
-            }
-            else if (tick.TickType == TickType.OpenInterest)
-            {
-                if (tick.Value != 0m)
+                else if (tick.TickType == TickType.OpenInterest)
                 {
-                    contract.OpenInterest = tick.Value;
+                    if (tick.Value != 0m)
+                    {
+                        contract.OpenInterest = tick.Value;
+                    }
                 }
             }
         }
@@ -620,30 +648,33 @@ namespace QuantConnect.Lean.Engine.DataFeeds
             }
         }
 
-        private static void UpdateContract(FuturesContract contract, Tick tick)
+        private static void UpdateContract(FuturesContract contract, Tick ticks)
         {
-            if (tick.TickType == TickType.Trade)
+            foreach (TickDataPoint tick in ticks)
             {
-                contract.LastPrice = tick.Price;
-            }
-            else if (tick.TickType == TickType.Quote)
-            {
-                if (tick.AskPrice != 0m)
+                if (tick.TickType == TickType.Trade)
                 {
-                    contract.AskPrice = tick.AskPrice;
-                    contract.AskSize = (long)tick.AskSize;
+                    contract.LastPrice = tick.Price;
                 }
-                if (tick.BidPrice != 0m)
+                else if (tick.TickType == TickType.Quote)
                 {
-                    contract.BidPrice = tick.BidPrice;
-                    contract.BidSize = (long)tick.BidSize;
+                    if (tick.AskPrice != 0m)
+                    {
+                        contract.AskPrice = tick.AskPrice;
+                        contract.AskSize = (long)tick.AskSize;
+                    }
+                    if (tick.BidPrice != 0m)
+                    {
+                        contract.BidPrice = tick.BidPrice;
+                        contract.BidSize = (long)tick.BidSize;
+                    }
                 }
-            }
-            else if (tick.TickType == TickType.OpenInterest)
-            {
-                if (tick.Value != 0m)
+                else if (tick.TickType == TickType.OpenInterest)
                 {
-                    contract.OpenInterest = tick.Value;
+                    if (tick.Value != 0m)
+                    {
+                        contract.OpenInterest = tick.Value;
+                    }
                 }
             }
         }

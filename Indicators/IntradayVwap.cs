@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Linq;
 using QuantConnect.Data;
 using QuantConnect.Data.Market;
 
@@ -76,7 +77,8 @@ namespace QuantConnect.Indicators
         /// </summary>
         protected bool TryGetVolumeAndAveragePrice(BaseData input, out decimal volume, out decimal averagePrice)
         {
-            var tick = input as Tick;
+            var ticks = input as Tick;
+            var tick = ticks.LastOrDefault() as TickDataPoint;
 
             if (tick?.TickType == TickType.Trade)
             {

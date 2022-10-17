@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -116,7 +116,7 @@ namespace QuantConnect.Algorithm.Framework.Selection
                 .ToArray();
             return _algorithm.HistoryProvider.GetHistory(requests, exchangeHours.TimeZone)
                 .Where(s => s.HasData && s.Ticks.Keys.Count > 0)
-                .SelectMany(s => s.Ticks.Select(x => new Tuple<Symbol, Tick>(x.Key, x.Value.LastOrDefault())))
+                .SelectMany(s => s.Ticks.Select(x => new Tuple<Symbol, Tick>(x.Key, x.Value)))
                 .GroupBy(x => x.Item1)
                 .ToDictionary(x => x.Key, x => x.OrderByDescending(i => i.Item2.Time).LastOrDefault().Item2.Value);
         }

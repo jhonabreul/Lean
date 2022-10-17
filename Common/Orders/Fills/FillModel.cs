@@ -587,17 +587,17 @@ namespace QuantConnect.Orders.Fills
             List<Tick> ticks = null;
             var isTickSubscribed = subscribedTypes.Contains(typeof(Tick));
 
-            if (isTickSubscribed)
-            {
-                ticks = asset.Cache.GetAll<Tick>().ToList();
+            //if (isTickSubscribed)
+            //{
+            //    ticks = asset.Cache.GetAll<Tick>().ToList();
 
-                var quote = ticks.LastOrDefault(x => x.TickType == TickType.Quote && x.AskPrice > 0);
-                if (quote != null)
-                {
-                    endTime = quote.EndTime;
-                    return quote.AskPrice;
-                }
-            }
+            //    var quote = ticks.LastOrDefault(x => x.TickType == TickType.Quote && x.AskPrice > 0);
+            //    if (quote != null)
+            //    {
+            //        endTime = quote.EndTime;
+            //        return quote.AskPrice;
+            //    }
+            //}
 
             if (subscribedTypes.Contains(typeof(QuoteBar)))
             {
@@ -609,15 +609,15 @@ namespace QuantConnect.Orders.Fills
                 }
             }
 
-            if (isTickSubscribed)
-            {
-                var trade = ticks.LastOrDefault(x => x.TickType == TickType.Trade && x.Price > 0);
-                if (trade != null)
-                {
-                    endTime = trade.EndTime;
-                    return trade.Price;
-                }
-            }
+            //if (isTickSubscribed)
+            //{
+            //    var trade = ticks.LastOrDefault(x => x.TickType == TickType.Trade && x.Price > 0);
+            //    if (trade != null)
+            //    {
+            //        endTime = trade.EndTime;
+            //        return trade.Price;
+            //    }
+            //}
 
             if (subscribedTypes.Contains(typeof(TradeBar)))
             {
@@ -646,17 +646,17 @@ namespace QuantConnect.Orders.Fills
             List<Tick> ticks = null;
             var isTickSubscribed = subscribedTypes.Contains(typeof(Tick));
 
-            if (isTickSubscribed)
-            {
-                ticks = asset.Cache.GetAll<Tick>().ToList();
+            //if (isTickSubscribed)
+            //{
+            //    ticks = asset.Cache.GetAll<Tick>().ToList();
 
-                var quote = ticks.LastOrDefault(x => x.TickType == TickType.Quote && x.BidPrice > 0);
-                if (quote != null)
-                {
-                    endTime = quote.EndTime;
-                    return quote.BidPrice;
-                }
-            }
+            //    var quote = ticks.LastOrDefault(x => x.TickType == TickType.Quote && x.BidPrice > 0);
+            //    if (quote != null)
+            //    {
+            //        endTime = quote.EndTime;
+            //        return quote.BidPrice;
+            //    }
+            //}
 
             if (subscribedTypes.Contains(typeof(QuoteBar)))
             {
@@ -668,15 +668,15 @@ namespace QuantConnect.Orders.Fills
                 }
             }
 
-            if (isTickSubscribed)
-            {
-                var trade = ticks.LastOrDefault(x => x.TickType == TickType.Trade && x.Price > 0);
-                if (trade != null)
-                {
-                    endTime = trade.EndTime;
-                    return trade.Price;
-                }
-            }
+            //if (isTickSubscribed)
+            //{
+            //    var trade = ticks.LastOrDefault(x => x.TickType == TickType.Trade && x.Price > 0);
+            //    if (trade != null)
+            //    {
+            //        endTime = trade.EndTime;
+            //        return trade.Price;
+            //    }
+            //}
 
             if (subscribedTypes.Contains(typeof(TradeBar)))
             {
@@ -787,22 +787,22 @@ namespace QuantConnect.Orders.Fills
             // Only fill with data types we are subscribed to
             var subscriptionTypes = GetSubscribedTypes(asset);
             // Tick
-            var tick = asset.Cache.GetData<Tick>();
-            if (tick != null && subscriptionTypes.Contains(typeof(Tick)))
-            {
-                var price = direction == OrderDirection.Sell ? tick.BidPrice : tick.AskPrice;
-                if (price != 0m)
-                {
-                    return new Prices(tick.EndTime, price, 0, 0, 0, 0);
-                }
+            //var tick = asset.Cache.GetData<Tick>();
+            //if (tick != null && subscriptionTypes.Contains(typeof(Tick)))
+            //{
+            //    var price = direction == OrderDirection.Sell ? tick.BidPrice : tick.AskPrice;
+            //    if (price != 0m)
+            //    {
+            //        return new Prices(tick.EndTime, price, 0, 0, 0, 0);
+            //    }
 
-                // If the ask/bid spreads are not available for ticks, try the price
-                price = tick.Price;
-                if (price != 0m)
-                {
-                    return new Prices(tick.EndTime, price, 0, 0, 0, 0);
-                }
-            }
+            //    // If the ask/bid spreads are not available for ticks, try the price
+            //    price = tick.Price;
+            //    if (price != 0m)
+            //    {
+            //        return new Prices(tick.EndTime, price, 0, 0, 0, 0);
+            //    }
+            //}
 
             // Quote
             var quoteBar = asset.Cache.GetData<QuoteBar>();

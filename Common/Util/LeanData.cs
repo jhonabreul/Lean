@@ -88,7 +88,7 @@ namespace QuantConnect.Util
                     switch (resolution)
                     {
                         case Resolution.Tick:
-                            var tick = (Tick) data;
+                            var tick = (TickDataPoint) data;
                             if (tick.TickType == TickType.Trade)
                             {
                                 return ToCsv(milliseconds, Scale(tick.LastPrice), tick.Quantity, tick.ExchangeCode, tick.SaleCondition, tick.Suspicious ? "1" : "0");
@@ -136,7 +136,7 @@ namespace QuantConnect.Util
                     switch (resolution)
                     {
                         case Resolution.Tick:
-                            var tick = data as Tick;
+                            var tick = data as TickDataPoint;
                             if (tick == null)
                             {
                                 throw new ArgumentException("Crypto tick could not be created", nameof(data));
@@ -193,7 +193,7 @@ namespace QuantConnect.Util
                     switch (resolution)
                     {
                         case Resolution.Tick:
-                            var tick = data as Tick;
+                            var tick = data as TickDataPoint;
                             if (tick == null)
                             {
                                 throw new ArgumentException("Expected data of type 'Tick'", nameof(data));
@@ -228,7 +228,7 @@ namespace QuantConnect.Util
                     switch (resolution)
                     {
                         case Resolution.Tick:
-                            var tick = (Tick) data;
+                            var tick = (TickDataPoint) data;
                             return ToCsv(milliseconds, tick.LastPrice, tick.Quantity, string.Empty, string.Empty, "0");
                         case Resolution.Second:
                         case Resolution.Minute:
@@ -250,7 +250,7 @@ namespace QuantConnect.Util
                     switch (resolution)
                     {
                         case Resolution.Tick:
-                            var tick = (Tick)data;
+                            var tick = (TickDataPoint)data;
                             if (tick.TickType == TickType.Trade)
                             {
                                 return ToCsv(milliseconds,
@@ -321,7 +321,7 @@ namespace QuantConnect.Util
                     switch (resolution)
                     {
                         case Resolution.Tick:
-                            var tick = (Tick)data;
+                            var tick = (TickDataPoint)data;
                             if (tick.TickType == TickType.Trade)
                             {
                                 return ToCsv(milliseconds,
@@ -392,7 +392,7 @@ namespace QuantConnect.Util
                     switch (resolution)
                     {
                         case Resolution.Tick:
-                            var tick = (Tick)data;
+                            var tick = (TickDataPoint)data;
                             if (tick.TickType == TickType.Trade)
                             {
                                 return ToCsv(milliseconds,
@@ -1260,8 +1260,9 @@ namespace QuantConnect.Util
          public static IEnumerable<QuoteBar> AggregateTicks(IEnumerable<Tick> ticks, Symbol symbol, TimeSpan resolution)
          {
              return
-                from t in ticks
-                    group t by t.Time.RoundDown(resolution)
+                from ts in ticks
+                from t in ts.Cast<TickDataPoint>()
+                group t by t.Time.RoundDown(resolution)
                     into g
                     select new QuoteBar
                     {

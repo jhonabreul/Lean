@@ -152,7 +152,7 @@ namespace QuantConnect.Orders.Fills
 
             if (subscribedTypes.Contains(typeof(Tick)))
             {
-                var trade = asset.Cache.GetAll<Tick>().LastOrDefault(x => x.TickType == TickType.Trade && x.Price > 0);
+                var trade = asset.Cache.GetAll<Tick>().LastOrDefault().LastOrDefault(x => (x as TickDataPoint).TickType == TickType.Trade && x.Price > 0);
                 
                 if (trade != null)
                 {
@@ -498,6 +498,8 @@ namespace QuantConnect.Orders.Fills
                 var openingPrints = (uint) (TradeConditionFlags.Regular | TradeConditionFlags.OpeningPrints);
 
                 var trades = asset.Cache.GetAll<Tick>()
+                    .SelectMany(x => x)
+                    .Cast<TickDataPoint>()
                     .Where(x => x.TickType == TickType.Trade && x.Price > 0 && asset.Exchange.DateTimeIsOpen(x.Time))
                     .OrderBy(x => x.EndTime).ToList();
 
@@ -521,7 +523,7 @@ namespace QuantConnect.Orders.Fills
 
                     fill.Message = "No trade with the OfficialOpen or OpeningPrints flag within the 1-minute timeout.";
 
-                    tick = trades.LastOrDefault() ?? asset.Cache.GetAll<Tick>().LastOrDefault();
+                    tick = trades.LastOrDefault() ?? asset.Cache.GetAll<Tick>().LastOrDefault().LastOrDefault() as TickDataPoint;
                     if ((tick?.EndTime.TimeOfDay - previousOpen)?.TotalMinutes < 1)
                     {
                         return fill;
@@ -640,6 +642,8 @@ namespace QuantConnect.Orders.Fills
                 var closingPrints = (uint)(TradeConditionFlags.Regular | TradeConditionFlags.ClosingPrints);
 
                 var trades = asset.Cache.GetAll<Tick>()
+                    .SelectMany(x => x)
+                    .Cast<TickDataPoint>()
                     .Where(x => x.TickType == TickType.Trade && x.Price > 0)
                     .OrderBy(x => x.EndTime).ToList();
 
@@ -655,7 +659,7 @@ namespace QuantConnect.Orders.Fills
                 // If there are only quotes, we will need to test for the tick type before we assign the fill price
                 if (tick == null)
                 {
-                    tick = trades.LastOrDefault() ?? asset.Cache.GetAll<Tick>().LastOrDefault();
+                    tick = trades.LastOrDefault() ?? asset.Cache.GetAll<Tick>().LastOrDefault().LastOrDefault() as TickDataPoint;
                     if (Parameters.ConfigProvider.GetSubscriptionDataConfigs(asset.Symbol).IsExtendedMarketHours())
                     {
                         fill.Message = "No trade with the OfficialClose or ClosingPrints flag within the 1-minute timeout.";
@@ -764,7 +768,7 @@ namespace QuantConnect.Orders.Fills
             // Define the cut off time to get the best effort bid or ask and whether the price is stale
             var localOrderTime = orderTime.ConvertFromUtc(asset.Exchange.TimeZone);
             var cutOffTime = localOrderTime.Add(-Parameters.StalePriceTimeSpan);
-
+            
             var subscribedTypes = GetSubscribedTypes(asset);
 
             List<Tick> ticks = null;
@@ -774,7 +778,8 @@ namespace QuantConnect.Orders.Fills
             {
                 ticks = asset.Cache.GetAll<Tick>().ToList();
 
-                var quote = ticks.LastOrDefault(x => x.TickType == TickType.Quote && x.AskPrice > 0);
+                var quote = (TickDataPoint) ticks.LastOrDefault()
+                                        .LastOrDefault(x => (x as TickDataPoint).TickType == TickType.Quote && (x as TickDataPoint).AskPrice > 0);
                 if (quote != null)
                 {
                     if (quote.EndTime >= cutOffTime)
@@ -806,7 +811,7 @@ namespace QuantConnect.Orders.Fills
 
             if (isTickSubscribed)
             {
-                var trade = ticks.LastOrDefault(x => x.TickType == TickType.Trade && x.Price > 0);
+                var trade = ticks.LastOrDefault().Cast<TickDataPoint>().LastOrDefault(x => x.TickType == TickType.Trade && x.Price > 0);
                 if (trade != null && (baseData == null || trade.EndTime > baseData.EndTime))
                 {
                     message = $"Warning: No quote information available at {trade.EndTime.ToStringInvariant()} {asset.Exchange.TimeZone}, order filled using Trade Tick data";
@@ -873,7 +878,7 @@ namespace QuantConnect.Orders.Fills
             {
                 ticks = asset.Cache.GetAll<Tick>().ToList();
 
-                var quote = ticks.LastOrDefault(x => x.TickType == TickType.Quote && x.BidPrice > 0);
+                var quote = ticks.LastOrDefault().Cast<TickDataPoint>().LastOrDefault(x => x.TickType == TickType.Quote && x.BidPrice > 0);
                 if (quote != null)
                 {
                     if (quote.EndTime >= cutOffTime)
@@ -905,7 +910,7 @@ namespace QuantConnect.Orders.Fills
 
             if (isTickSubscribed)
             {
-                var trade = ticks.LastOrDefault(x => x.TickType == TickType.Trade && x.Price > 0);
+                var trade = ticks.LastOrDefault().Cast<TickDataPoint>().LastOrDefault(x => x.TickType == TickType.Trade && x.Price > 0);
                 if (trade != null && (baseData == null || trade.EndTime > baseData.EndTime))
                 {
                     message = $"Warning: No quote information available at {trade.EndTime.ToStringInvariant()} {asset.Exchange.TimeZone}, order filled using Trade Tick data";
@@ -977,13 +982,14 @@ namespace QuantConnect.Orders.Fills
             {
                 return new Prices(endTime, current, open, high, low, close);
             }
-
+            
             // Only fill with data types we are subscribed to
             var subscriptionTypes = Parameters.ConfigProvider
                 .GetSubscriptionDataConfigs(asset.Symbol)
                 .Select(x => x.Type).ToList();
             // Tick
-            var tick = asset.Cache.GetData<Tick>();
+            var ticks = asset.Cache.GetData<Tick>();
+            var tick = ticks?.LastOrDefault() as TickDataPoint;
             if (subscriptionTypes.Contains(typeof(Tick)) && tick != null)
             {
                 var price = direction == OrderDirection.Sell ? tick.BidPrice : tick.AskPrice;

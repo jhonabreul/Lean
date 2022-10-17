@@ -177,14 +177,21 @@ namespace QuantConnect.Lean.Engine.DataFeeds.Queues
                     if (trades)
                     {
                         _count++;
-                        _aggregator.Update(new Tick
+                        var ticks = new Tick()
+                        {
+                            Time = offsetProvider.ConvertFromUtc(now),
+                            Symbol = symbol,
+                        };
+                        var tick = new TickDataPoint
                         {
                             Time = offsetProvider.ConvertFromUtc(now),
                             Symbol = symbol,
                             Value = 10 + (decimal)Math.Abs(Math.Sin(now.TimeOfDay.TotalMinutes)),
                             TickType = TickType.Trade,
                             Quantity = _random.Next(10, (int)_timer.Interval)
-                        });
+                        };
+                        ticks.Add(tick);
+                        _aggregator.Update(ticks);
                     }
 
                     if (quotes)
@@ -194,7 +201,7 @@ namespace QuantConnect.Lean.Engine.DataFeeds.Queues
                         var bidSize = _random.Next(10, (int) _timer.Interval);
                         var askSize = _random.Next(10, (int)_timer.Interval);
                         var time = offsetProvider.ConvertFromUtc(now);
-                        _aggregator.Update(new Tick(time, symbol, "", "",bid, bidSize, bid * 1.01m, askSize));
+                        //_aggregator.Update(new Tick(time, symbol, "", "",bid, bidSize, bid * 1.01m, askSize));
                     }
                 }
             }

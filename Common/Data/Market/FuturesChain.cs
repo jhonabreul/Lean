@@ -129,10 +129,10 @@ namespace QuantConnect.Data.Market
                 var tick = trade as Tick;
                 if (tick != null)
                 {
-                    List<Tick> ticks;
+                    Tick ticks;
                     if (!Ticks.TryGetValue(tick.Symbol, out ticks))
                     {
-                        ticks = new List<Tick>();
+                        ticks = new Tick();
                         Ticks[tick.Symbol] = ticks;
                     }
                     ticks.Add(tick);
@@ -150,10 +150,10 @@ namespace QuantConnect.Data.Market
                 var tick = quote as Tick;
                 if (tick != null)
                 {
-                    List<Tick> ticks;
+                    Tick ticks;
                     if (!Ticks.TryGetValue(tick.Symbol, out ticks))
                     {
-                        ticks = new List<Tick>();
+                        ticks = new Tick();
                         Ticks[tick.Symbol] = ticks;
                     }
                     ticks.Add(tick);

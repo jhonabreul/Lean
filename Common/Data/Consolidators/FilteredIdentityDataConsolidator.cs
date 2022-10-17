@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -14,6 +14,8 @@
 */
 
 using System;
+using System.Linq;
+using QLNet;
 using QuantConnect.Data.Market;
 
 namespace QuantConnect.Data.Consolidators
@@ -64,7 +66,7 @@ namespace QuantConnect.Data.Consolidators
         /// <returns>A new <see cref="FilteredIdentityDataConsolidator{T}"/> that filters based on the provided tick type</returns>
         public static FilteredIdentityDataConsolidator<Tick> ForTickType(TickType tickType)
         {
-            return new FilteredIdentityDataConsolidator<Tick>(tick => tick.TickType == tickType);
+            return new FilteredIdentityDataConsolidator<Tick>(tick => tick.Any(t => (t as TickDataPoint).TickType == tickType));
         }
     }
 }

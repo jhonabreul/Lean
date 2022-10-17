@@ -287,7 +287,7 @@ namespace QuantConnect.Data
             switch (data.Symbol.SecurityType)
             {
                 case SecurityType.Equity:
-                    if (data.DataType == MarketDataType.QuoteBar || data.DataType == MarketDataType.Tick && (data as Tick).TickType == TickType.Quote)
+                    if (data.DataType == MarketDataType.QuoteBar || data.DataType == MarketDataType.Tick && (data as Tick).Any(x => (x as TickDataPoint).TickType == TickType.Quote))
                     {
                         return false;
                     }
