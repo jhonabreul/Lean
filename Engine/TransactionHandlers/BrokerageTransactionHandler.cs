@@ -18,6 +18,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using QuantConnect.AlgorithmFactory;
 using QuantConnect.Brokerages;
 using QuantConnect.Interfaces;
 using QuantConnect.Lean.Engine.Results;
@@ -1066,6 +1067,7 @@ namespace QuantConnect.Lean.Engine.TransactionHandlers
                         // else the virtual position will bigger than the real size and we might no be able to liquidate
                         orderEvent.FillQuantity -= orderEvent.OrderFee.Value.Amount;
                         orderEvent.OrderFee = new ModifiedFillQuantityOrderFee(orderEvent.OrderFee.Value, quoteCurrency, security.SymbolProperties.ContractMultiplier);
+                        orderEvent.FillQuantity = RoundOffQuantity(orderEvent.FillQuantity, security);
 
                         if (!_loggedFeeAdjustmentWarning)
                         {
@@ -1328,11 +1330,11 @@ namespace QuantConnect.Lean.Engine.TransactionHandlers
             // generate the order events reusing the option exercise model
             var option = (Option)security;
             var orderEvents = option.OptionExerciseModel.OptionExercise(option, order);
-            
+
             foreach (var orderEvent in orderEvents)
             {
                 HandleOrderEvent(orderEvent);
-                
+
                 if (orderEvent.IsAssignment)
                 {
                     orderEvent.Message = order.Tag;
@@ -1352,16 +1354,14 @@ namespace QuantConnect.Lean.Engine.TransactionHandlers
         /// </summary>
         protected virtual DateTime CurrentTimeUtc => DateTime.UtcNow;
 
-        /// <summary>
-        /// Rounds off the order towards 0 to the nearest multiple of Lot Size
-        /// </summary>
-        public decimal RoundOffOrder(Order order, Security security)
+        private decimal RoundOffQuantity(decimal quantity, Security security)
         {
-            var orderLotMod = order.Quantity % security.SymbolProperties.LotSize;
+            decimal roundedQuantity = quantity;
+            var orderLotMod = quantity % security.SymbolProperties.LotSize;;
 
             if (orderLotMod != 0)
             {
-                order.Quantity = order.Quantity - orderLotMod;
+                roundedQuantity = quantity - orderLotMod;
 
                 if (!_firstRoundOffMessage)
                 {
@@ -1370,12 +1370,18 @@ namespace QuantConnect.Lean.Engine.TransactionHandlers
                     );
                     _firstRoundOffMessage = true;
                 }
-                return order.Quantity;
             }
-            else
-            {
-                return order.Quantity;
-            }
+
+            return roundedQuantity;
+        }
+
+        /// <summary>
+        /// Rounds off the order towards 0 to the nearest multiple of Lot Size
+        /// </summary>
+        public decimal RoundOffOrder(Order order, Security security)
+        {
+            order.Quantity = RoundOffQuantity(order.Quantity, security);
+            return order.Quantity;
         }
 
         /// <summary>
