@@ -968,36 +968,6 @@ namespace QuantConnect.Lean.Engine.TransactionHandlers
             return OrderResponse.Success(request);
         }
 
-        private bool TryGetOrder(OrderEvent orderEvent, out Order order)
-        {
-            if (orderEvent.Status.IsClosed() && _openOrders.TryRemove(orderEvent.OrderId, out order))
-            {
-                _completeOrders[orderEvent.OrderId] = order;
-            }
-            else if (!_completeOrders.TryGetValue(orderEvent.OrderId, out order))
-            {
-                LogOrderEvent(orderEvent);
-                return false;
-            }
-
-            return true;
-        }
-
-        private bool TryGetOrderTicket(OrderEvent orderEvent, out OrderTicket ticket)
-        {
-            if (orderEvent.Status.IsClosed() && _openOrderTickets.TryRemove(orderEvent.OrderId, out ticket))
-            {
-                _completeOrderTickets[orderEvent.OrderId] = ticket;
-            }
-            else if (!_completeOrderTickets.TryGetValue(orderEvent.OrderId, out ticket))
-            {
-                LogOrderEvent(orderEvent);
-                return false;
-            }
-
-            return true;
-        }
-
         private void HandleOrderEvents(List<OrderEvent> orderEvents)
         {
             lock (_lockHandleOrderEvent)
