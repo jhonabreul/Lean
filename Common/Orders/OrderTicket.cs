@@ -233,7 +233,11 @@ namespace QuantConnect.Orders
             switch (field)
             {
                 case OrderField.LimitPrice:
-                    if (_submitRequest.OrderType == OrderType.Limit)
+                    if (_submitRequest.OrderType == OrderType.ComboLimit)
+                    {
+                        return AccessOrder<ComboLimitOrder>(this, field, o => o.GroupOrderManager.LimitPrice, r => r.LimitPrice);
+                    }
+                    if (_submitRequest.OrderType == OrderType.Limit || _submitRequest.OrderType == OrderType.ComboLegLimit)
                     {
                         return AccessOrder<LimitOrder>(this, field, o => o.LimitPrice, r => r.LimitPrice);
                     }
@@ -257,7 +261,7 @@ namespace QuantConnect.Orders
                         return AccessOrder<StopMarketOrder>(this, field, o => o.StopPrice, r => r.StopPrice);
                     }
                     break;
-                
+
                 case OrderField.TriggerPrice:
                     return AccessOrder<LimitIfTouchedOrder>(this, field, o => o.TriggerPrice, r => r.TriggerPrice);
 
