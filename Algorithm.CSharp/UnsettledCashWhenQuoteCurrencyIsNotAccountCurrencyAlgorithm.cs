@@ -89,6 +89,59 @@ namespace QuantConnect.Algorithm.CSharp
             }
         }
 
+        public override void OnEndOfAlgorithm()
+        {
+            foreach (var kvp in Portfolio.CashBook)
+            {
+                var symbol = kvp.Key;
+                var cash = kvp.Value;
+                var unsettledCash = Portfolio.UnsettledCashBook[symbol];
+
+                if (unsettledCash.ConversionRate != cash.ConversionRate)
+                {
+                    throw new Exception($@"Unsettled cash conversion rate for {symbol} is {
+                        unsettledCash.ConversionRate} but should be {cash.ConversionRate}");
+                }
+
+                var accountCurrency = Portfolio.CashBook.AccountCurrency;
+
+                if (unsettledCash.Symbol == accountCurrency)
+                {
+                    if (unsettledCash.ConversionRate != 1)
+                    {
+                        throw new Exception($@"Conversion rate for {unsettledCash.Symbol
+                            } (the account currency) in the UnsettledCashBook should be 1 but was {unsettledCash.ConversionRate}.");
+                    }
+
+                    if (unsettledCash.CurrencyConversion != null)
+                    {
+                        throw new Exception($@"Currency conversion for {unsettledCash.Symbol
+                            } (the account currency) in the UnsettledCashBook should be null but has a value.");
+                    }
+                }
+                else
+                {
+                    if (unsettledCash.CurrencyConversion == null)
+                    {
+                        throw new Exception($@"Currency conversion for {unsettledCash.Symbol} in the UnsettledCashBook should not be null.");
+                    }
+
+                    var sourceCurrency = unsettledCash.CurrencyConversion.SourceCurrency;
+                    var destinationCurrency = unsettledCash.CurrencyConversion.DestinationCurrency;
+
+                    if (!(
+                        (sourceCurrency == accountCurrency && destinationCurrency == unsettledCash.Symbol) ||
+                        (sourceCurrency == unsettledCash.Symbol && destinationCurrency == accountCurrency)
+                        ))
+                    {
+                        throw new Exception($@"Currency conversion for {
+                            unsettledCash.Symbol} in UnsettledCashBook is not correct. Source and destination currency should have been {
+                            accountCurrency} and {unsettledCash.Symbol} or vice versa but were {sourceCurrency} and {destinationCurrency}.");
+                    }
+                }
+            }
+        }
+
         /// <summary>
         /// This is used by the regression test system to indicate if the open source Lean repository has the required data to run this algorithm.
         /// </summary>

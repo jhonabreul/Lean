@@ -33,9 +33,11 @@ namespace QuantConnect.Securities
     [ProtoContract(SkipConstructor = true)]
     public class Cash
     {
+        private ICurrencyConversion _currencyConversion;
         private decimal _conversionRate;
         private bool _isBaseCurrency;
         private bool _conversionRateNeedsUpdate;
+
 
         private readonly object _locker = new object();
 
@@ -44,6 +46,16 @@ namespace QuantConnect.Securities
         /// <see cref="AddAmount"/>, <see cref="SetAmount"/>, <see cref="Update"/>
         /// </summary>
         public event EventHandler Updated;
+
+        /// <summary>
+        /// Event fired when this instance's <see cref="CurrencyConversion"/> is set/updated
+        /// </summary>
+        public event EventHandler CurrencyConversionUpdated;
+
+        /// <summary>
+        /// Event fired when this instance's <see cref="ConversionRate"/> is marked as potentially outdated
+        /// </summary>
+        public event EventHandler ConversionRateOutdated;
 
         /// <summary>
         /// Gets the symbols of the securities required to provide conversion rates.
@@ -56,7 +68,18 @@ namespace QuantConnect.Securities
         /// Gets the object that calculates the conversion rate to account currency
         /// </summary>
         [JsonIgnore]
-        public ICurrencyConversion CurrencyConversion { get; private set; }
+        public ICurrencyConversion CurrencyConversion
+        {
+            get
+            {
+                return _currencyConversion;
+            }
+            internal set
+            {
+                _currencyConversion = value;
+                CurrencyConversionUpdated?.Invoke(this, EventArgs.Empty);
+            }
+        }
 
         /// <summary>
         /// Gets the symbol used to represent this cash
@@ -139,6 +162,7 @@ namespace QuantConnect.Securities
             if (_isBaseCurrency) return;
 
             _conversionRateNeedsUpdate = true;
+            ConversionRateOutdated?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>
@@ -259,7 +283,7 @@ namespace QuantConnect.Securities
             // This allows us to add cash for "StableCoins" that are 1-1 with our account currency without needing a conversion security.
             // Check out the StableCoinsWithoutPairs static var for those that are missing their 1-1 conversion pairs
             if (marketMap.TryGetValue(SecurityType.Crypto, out var market)
-                && 
+                &&
                 (Currencies.IsStableCoinWithoutPair(Symbol + accountCurrency, market)
                 || Currencies.IsStableCoinWithoutPair(accountCurrency + Symbol, market)))
             {
