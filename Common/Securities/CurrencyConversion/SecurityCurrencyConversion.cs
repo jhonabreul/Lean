@@ -55,6 +55,9 @@ namespace QuantConnect.Securities.CurrencyConversion
 
         private readonly List<Step> _steps;
 
+        private decimal _conversionRate;
+        private bool _conversionRateNeedsUpdate;
+
         /// <summary>
         /// The currency this conversion converts from
         /// </summary>
@@ -68,7 +71,50 @@ namespace QuantConnect.Securities.CurrencyConversion
         /// <summary>
         /// The current conversion rate
         /// </summary>
-        public decimal ConversionRate { get; private set; }
+        public decimal ConversionRate
+        {
+            get
+            {
+                if (_conversionRateNeedsUpdate)
+                {
+                    var newConversionRate = 1m;
+                    var stepWithoutDataFound = false;
+
+                    _steps.ForEach(step =>
+                    {
+                        if (stepWithoutDataFound)
+                        {
+                            return;
+                        }
+
+                        var lastData = step.RateSecurity.GetLastData();
+                        if (lastData == null || lastData.Price == 0m)
+                        {
+                            newConversionRate = 0m;
+                            stepWithoutDataFound = true;
+                            return;
+                        }
+
+                        if (step.Inverted)
+                        {
+                            newConversionRate /= lastData.Price;
+                        }
+                        else
+                        {
+                            newConversionRate *= lastData.Price;
+                        }
+                    });
+
+                    _conversionRate = newConversionRate;
+                }
+
+                return _conversionRate;
+            }
+            set
+            {
+                _conversionRate = value;
+            }
+        }
 
         /// <summary>
         /// The securities which the conversion rate is based on
@@ -91,41 +137,11 @@ namespace QuantConnect.Securities.CurrencyConversion
         }
 
         /// <summary>
-        /// Updates the internal conversion rate based on the latest data, and returns the new conversion rate
+        /// Marks the conversion rate as potentially outdated, needing an update based on the latest data
         /// </summary>
-        /// <returns>The new conversion rate</returns>
-        public decimal Update()
+        public void Update()
         {
-            var newConversionRate = 1m;
-            var stepWithoutDataFound = false;
-
-            _steps.ForEach(step =>
-            {
-                if (stepWithoutDataFound)
-                {
-                    return;
-                }
-
-                var lastData = step.RateSecurity.GetLastData();
-                if (lastData == null || lastData.Price == 0m)
-                {
-                    newConversionRate = 0m;
-                    stepWithoutDataFound = true;
-                    return;
-                }
-
-                if (step.Inverted)
-                {
-                    newConversionRate /= lastData.Price;
-                }
-                else
-                {
-                    newConversionRate *= lastData.Price;
-                }
-            });
-
-            ConversionRate = newConversionRate;
-            return ConversionRate;
+            _conversionRateNeedsUpdate = true;
         }
 
         /// <summary>

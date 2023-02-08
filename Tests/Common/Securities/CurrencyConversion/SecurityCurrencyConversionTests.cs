@@ -186,7 +186,9 @@ namespace QuantConnect.Tests.Common.Securities.CurrencyConversion
 
             existingSecurities[0].SetMarketPrice(new Tick { Value = 10m });
 
-            Assert.AreEqual(expectedRate, currencyConversion.Update());
+            currencyConversion.Update();
+
+            Assert.AreEqual(expectedRate, currencyConversion.ConversionRate);
         }
 
         [TestCaseSource(nameof(twoLegCases))]
@@ -213,7 +215,9 @@ namespace QuantConnect.Tests.Common.Securities.CurrencyConversion
             existingSecurities[0].SetMarketPrice(new Tick { Value = 15m });
             existingSecurities[1].SetMarketPrice(new Tick { Value = 25m });
 
-            Assert.AreEqual(expectedRate, currencyConversion.Update());
+            currencyConversion.Update();
+
+            Assert.AreEqual(expectedRate, currencyConversion.ConversionRate);
         }
 
         [Test]
@@ -228,7 +232,9 @@ namespace QuantConnect.Tests.Common.Securities.CurrencyConversion
                 new List<Symbol>(0),
                 CreateSecurity);
 
-            Assert.AreEqual(0m, currencyConversion.Update());
+            currencyConversion.Update();
+
+            Assert.AreEqual(0m, currencyConversion.ConversionRate);
         }
 
         [Test]
@@ -249,7 +255,9 @@ namespace QuantConnect.Tests.Common.Securities.CurrencyConversion
 
             existingSecurities[0].SetMarketPrice(new Tick { Value = 15m });
 
-            Assert.AreEqual(0m, currencyConversion.Update());
+            currencyConversion.Update();
+
+            Assert.AreEqual(0m, currencyConversion.ConversionRate);
         }
 
         [Test]

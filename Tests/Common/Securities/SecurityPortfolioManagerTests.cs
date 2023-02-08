@@ -2764,8 +2764,8 @@ namespace QuantConnect.Tests.Common.Securities
             Assert.AreEqual(0, outdatedCurrencyConversionCalls);
             Assert.IsNotNull(unsettledEurCash.CurrencyConversion);
             Assert.IsNotNull(unsettledAudCash.CurrencyConversion);
-            Assert.AreEqual(1m, unsettledEurCash.ConversionRate);
-            Assert.AreEqual(1m, unsettledAudCash.ConversionRate);
+            Assert.AreEqual(settledEurCash.CurrencyConversion.ConversionRate, unsettledEurCash.ConversionRate);
+            Assert.AreEqual(settledAudCash.CurrencyConversion.ConversionRate, unsettledAudCash.ConversionRate);
 
             foreach (var cash in cashBook.Values)
             {
@@ -2867,7 +2867,7 @@ namespace QuantConnect.Tests.Common.Securities
 
             public string DestinationCurrency { get; }
 
-            public decimal ConversionRate { get; }
+            public decimal ConversionRate { get; set; }
 
             public IEnumerable<Security> ConversionRateSecurities { get; } = Enumerable.Empty<Security>();
 
@@ -2878,9 +2878,9 @@ namespace QuantConnect.Tests.Common.Securities
                 ConversionRate = conversionRate;
             }
 
-            public decimal Update()
+            public void Update()
             {
-                return ConversionRate;
+                ConversionRate *= 1.01m;
             }
         }
     }

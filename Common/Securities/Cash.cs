@@ -36,8 +36,6 @@ namespace QuantConnect.Securities
         private ICurrencyConversion _currencyConversion;
         private decimal _conversionRate;
         private bool _isBaseCurrency;
-        private bool _conversionRateNeedsUpdate;
-
 
         private readonly object _locker = new object();
 
@@ -101,14 +99,9 @@ namespace QuantConnect.Securities
         {
             get
             {
-                if (_conversionRateNeedsUpdate)
+                if (CurrencyConversion != null && _conversionRate != CurrencyConversion.ConversionRate)
                 {
-                    if (CurrencyConversion != null)
-                    {
-                        _conversionRate = CurrencyConversion.Update();
-                    }
-
-                    _conversionRateNeedsUpdate = false;
+                    _conversionRate = CurrencyConversion.ConversionRate;
                     OnUpdate();
                 }
 
@@ -116,12 +109,22 @@ namespace QuantConnect.Securities
             }
             internal set
             {
-                if(_conversionRate != value)
+                if (_conversionRate != value)
                 {
                     // only update if there was actually one
-                    _conversionRate = value;
+                    if (CurrencyConversion != null)
+                    {
+                        _conversionRate = CurrencyConversion.ConversionRate = value;
+                    }
+                    else
+                    {
+                        _conversionRate = value;
+                    }
+
                     OnUpdate();
                 }
+
+
             }
         }
 
@@ -161,7 +164,7 @@ namespace QuantConnect.Securities
         {
             if (_isBaseCurrency) return;
 
-            _conversionRateNeedsUpdate = true;
+            CurrencyConversion?.Update();
             ConversionRateOutdated?.Invoke(this, EventArgs.Empty);
         }
 
