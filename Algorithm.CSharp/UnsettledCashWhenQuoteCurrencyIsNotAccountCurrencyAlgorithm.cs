@@ -19,6 +19,7 @@ using QuantConnect.Brokerages;
 using QuantConnect.Data;
 using QuantConnect.Interfaces;
 using QuantConnect.Orders;
+using QuantConnect.Securities.CurrencyConversion;
 
 namespace QuantConnect.Algorithm.CSharp
 {
@@ -113,17 +114,21 @@ namespace QuantConnect.Algorithm.CSharp
                             } (the account currency) in the UnsettledCashBook should be 1 but was {unsettledCash.ConversionRate}.");
                     }
 
-                    if (unsettledCash.CurrencyConversion != null)
+                    if (unsettledCash.CurrencyConversion.GetType() != typeof(DefaultCurrencyConversion) ||
+                        unsettledCash.CurrencyConversion.SourceCurrency != accountCurrency ||
+                        unsettledCash.CurrencyConversion.DestinationCurrency != accountCurrency)
                     {
                         throw new Exception($@"Currency conversion for {unsettledCash.Symbol
-                            } (the account currency) in the UnsettledCashBook should be null but has a value.");
+                            } (the account currency) in the UnsettledCashBook should be an identity conversion of type {
+                            nameof(DefaultCurrencyConversion)}");
                     }
                 }
                 else
                 {
-                    if (unsettledCash.CurrencyConversion == null)
+                    if (unsettledCash.CurrencyConversion.GetType() != typeof(SecurityCurrencyConversion))
                     {
-                        throw new Exception($@"Currency conversion for {unsettledCash.Symbol} in the UnsettledCashBook should not be null.");
+                        throw new Exception($@"Currency conversion for {unsettledCash.Symbol} in the UnsettledCashBook should be of type {
+                            nameof(SecurityCurrencyConversion)}");
                     }
 
                     var sourceCurrency = unsettledCash.CurrencyConversion.SourceCurrency;

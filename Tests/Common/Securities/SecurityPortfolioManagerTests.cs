@@ -2733,8 +2733,8 @@ namespace QuantConnect.Tests.Common.Securities
 
             CollectionAssert.Contains(unsettledCashBook.Keys, "EUR");
             CollectionAssert.Contains(unsettledCashBook.Keys, "AUD");
-            Assert.IsNull(unsettledEurCash.CurrencyConversion);
-            Assert.IsNull(unsettledAudCash.CurrencyConversion);
+            Assert.IsInstanceOf(typeof(DefaultCurrencyConversion), unsettledEurCash.CurrencyConversion);
+            Assert.IsInstanceOf(typeof(DefaultCurrencyConversion), unsettledAudCash.CurrencyConversion);
             Assert.AreEqual(1m, unsettledEurCash.ConversionRate);
             Assert.AreEqual(1m, unsettledAudCash.ConversionRate);
 
