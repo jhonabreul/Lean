@@ -564,10 +564,10 @@ namespace QuantConnect.Algorithm
         public ObjectStore ObjectStore { get; private set; }
 
         /// <summary>
-        /// The <see cref="IBacktestingMarketSimulation"/> implementation to simulate market activity
+        /// The <see cref="IAssignmentModel"/> implementation to simulate market activity
         /// </summary>
         [DocumentationAttribute(Modeling)]
-        public IBacktestingMarketSimulation MarketSimulation { get; private set; }
+        public IAssignmentModel AssignmentModel { get; private set; }
 
         /// <summary>
         /// Initialise the data and resolution required, as well as the cash and start-end dates for your algorithm. All algorithms must initialized.
@@ -1578,16 +1578,16 @@ namespace QuantConnect.Algorithm
         }
 
         /// <summary>
-        /// Set the <see cref="IBacktestingMarketSimulation"/> implementation to simulate market activity
+        /// Set the <see cref="IAssignmentModel"/> implementation to simulate market activity
         /// </summary>
         [DocumentationAttribute(Modeling)]
-        public void SetMarketSimulation(IBacktestingMarketSimulation marketSimulation)
+        public void SetAssignmentModel(IAssignmentModel assignmentModel)
         {
-            if (marketSimulation == null)
+            if (assignmentModel == null)
             {
-                throw new ArgumentNullException(nameof(marketSimulation), "Algorithm.SetMarketSimulation(): Market simulation cannot be null.");
+                throw new ArgumentNullException(nameof(assignmentModel), "Algorithm.SetAssignmentModel(): Market simulation cannot be null.");
             }
-            MarketSimulation = marketSimulation;
+            AssignmentModel = assignmentModel;
         }
 
         /// <summary>

@@ -13,20 +13,18 @@
  * limitations under the License.
 */
 
-using QuantConnect.Interfaces;
-
-namespace QuantConnect.Brokerages.Backtesting
+namespace QuantConnect.Interfaces
 {
     /// <summary>
-    /// Null market simulation used to disable market simulation
+    /// Assignment model interface, that must be implemented by all simulators of market conditions
     /// </summary>
-    public class NullMarketSimulation : IBacktestingMarketSimulation
+    public interface IAssignmentModel
     {
         /// <summary>
-        /// The null market simulation is used to disable market simulation
+        /// Method is called by brokerages to simulate market conditions.
         /// </summary>
-        public void SimulateMarketConditions(IBrokerage brokerage, IAlgorithm algorithm)
-        {
-        }
+        /// <param name="brokerage">Brokerage instance</param>
+        /// <param name="algorithm">Algorithm instance</param>
+        void SimulateMarketConditions(IBrokerage brokerage, IAlgorithm algorithm);
     }
 }

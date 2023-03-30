@@ -350,9 +350,9 @@ namespace QuantConnect.Interfaces
         Slice CurrentSlice { get; }
 
         /// <summary>
-        /// The <see cref="IBacktestingMarketSimulation"/> implementation to simulate market activity
+        /// The <see cref="IAssignmentModel"/> implementation to simulate market activity
         /// </summary>
-        IBacktestingMarketSimulation MarketSimulation { get;  }
+        IAssignmentModel AssignmentModel { get;  }
 
         /// <summary>
         /// Initialise the Algorithm and Prepare Required Data:
@@ -759,8 +759,8 @@ namespace QuantConnect.Interfaces
         void SetObjectStore(IObjectStore objectStore);
 
         /// <summary>
-        /// Set the <see cref="IBacktestingMarketSimulation"/> implementation to simulate market activity
+        /// Set the <see cref="IAssignmentModel"/> implementation to simulate market activity
         /// </summary>
-        void SetMarketSimulation(IBacktestingMarketSimulation marketSimulation);
+        void SetAssignmentModel(IAssignmentModel assignmentModel);
     }
 }

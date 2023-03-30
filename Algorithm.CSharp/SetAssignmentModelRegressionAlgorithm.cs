@@ -21,9 +21,9 @@ using QuantConnect.Interfaces;
 namespace QuantConnect.Algorithm.CSharp
 {
     /// <summary>
-    /// Regression algorithm asserting that the correct market simulation instance is used when setting it using <see cref="IAlgorithm.SetMarketSimulation"/>
+    /// Regression algorithm asserting that the correct market simulation instance is used when setting it using <see cref="IAlgorithm.SetAssignmentModel"/>
     /// </summary>
-    class SetMarketSimulationRegressionAlgorithm : QCAlgorithm, IRegressionAlgorithmDefinition
+    class SetAssignmentModelRegressionAlgorithm : QCAlgorithm, IRegressionAlgorithmDefinition
     {
         private int _simulateMarketConditionsCallCount;
 
@@ -37,17 +37,17 @@ namespace QuantConnect.Algorithm.CSharp
 
             try
             {
-                SetMarketSimulation(null);
-                throw new Exception("Expected SetMarketSimulation to throw an exception when passed null");
+                SetAssignmentModel(null);
+                throw new Exception("Expected SetAssignmentModel to throw an exception when passed null");
             }
             catch (ArgumentNullException e)
             {
                 // expected
             }
 
-            var marketSimulation = new TestMarketSimulation();
-            marketSimulation.OnSimulate += (_, _) => _simulateMarketConditionsCallCount++;
-            SetMarketSimulation(marketSimulation);
+            var assignmentModel = new TestAssignmentModel();
+            assignmentModel.OnSimulate += (_, _) => _simulateMarketConditionsCallCount++;
+            SetAssignmentModel(assignmentModel);
         }
 
         /// <summary>
@@ -113,7 +113,7 @@ namespace QuantConnect.Algorithm.CSharp
         };
     }
 
-    public class TestMarketSimulation : IBacktestingMarketSimulation
+    public class TestAssignmentModel : IAssignmentModel
     {
         public event EventHandler OnSimulate;
 

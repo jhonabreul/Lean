@@ -115,8 +115,8 @@ namespace QuantConnect.Lean.Engine.Setup
         public IBrokerage CreateBrokerage(AlgorithmNodePacket algorithmNodePacket, IAlgorithm uninitializedAlgorithm, out IBrokerageFactory factory)
         {
             factory = new BacktestingBrokerageFactory();
-            var optionMarketSimulation = new BasicOptionAssignmentSimulation();
-            return new BacktestingBrokerage(uninitializedAlgorithm, optionMarketSimulation);
+            var assignmentModel = new BasicOptionAssignmentModel();
+            return new BacktestingBrokerage(uninitializedAlgorithm, assignmentModel);
         }
 
         /// <summary>

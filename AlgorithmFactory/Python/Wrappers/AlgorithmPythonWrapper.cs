@@ -454,7 +454,7 @@ namespace QuantConnect.AlgorithmFactory.Python.Wrappers
         /// <summary>
         /// Gets the market simulation instance
         /// </summary>
-        public IBacktestingMarketSimulation MarketSimulation => _baseAlgorithm.MarketSimulation;
+        public IAssignmentModel AssignmentModel => _baseAlgorithm.AssignmentModel;
 
         /// <summary>
         /// Set a required SecurityType-symbol and resolution for algorithm
@@ -1049,11 +1049,11 @@ namespace QuantConnect.AlgorithmFactory.Python.Wrappers
         }
 
         /// <summary>
-        /// Set the <see cref="IBacktestingMarketSimulation"/> implementation to simulate market activity
+        /// Set the <see cref="IAssignmentModel"/> implementation to simulate market activity
         /// </summary>
-        public void SetMarketSimulation(IBacktestingMarketSimulation marketSimulation)
+        public void SetAssignmentModel(IAssignmentModel assignmentModel)
         {
-            _baseAlgorithm.SetMarketSimulation(marketSimulation);
+            _baseAlgorithm.SetAssignmentModel(assignmentModel);
         }
     }
 }

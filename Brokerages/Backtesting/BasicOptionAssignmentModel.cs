@@ -31,7 +31,7 @@ namespace QuantConnect.Brokerages.Backtesting
     /// it assigns short legs getting profit close to expiration dates in deep ITM positions. User algorithm then receives
     /// assignment event from LEAN. Simulator randomly scans for arbitrage opportunities every two hours or so.
     /// </summary>
-    public class BasicOptionAssignmentSimulation : IBacktestingMarketSimulation
+    public class BasicOptionAssignmentModel : IAssignmentModel
     {
         // we start simulating assignments 4 days prior to expiration
         private readonly TimeSpan _priorExpiration = new TimeSpan(4,0,0,0);

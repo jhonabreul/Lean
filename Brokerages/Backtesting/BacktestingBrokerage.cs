@@ -78,12 +78,12 @@ namespace QuantConnect.Brokerages.Backtesting
         /// Creates a new BacktestingBrokerage for the specified algorithm. Adds market simulation to BacktestingBrokerage;
         /// </summary>
         /// <param name="algorithm">The algorithm instance</param>
-        /// <param name="marketSimulation">The backtesting market simulation instance</param>
-        public BacktestingBrokerage(IAlgorithm algorithm, IBacktestingMarketSimulation marketSimulation)
+        /// <param name="assignmentModel">The backtesting market simulation instance</param>
+        public BacktestingBrokerage(IAlgorithm algorithm, IAssignmentModel assignmentModel)
             : base("Backtesting Brokerage")
         {
             Algorithm = algorithm;
-            Algorithm.SetMarketSimulation(marketSimulation);
+            Algorithm.SetAssignmentModel(assignmentModel);
             _pending = new ConcurrentDictionary<int, Order>();
         }
 
@@ -246,6 +246,9 @@ namespace QuantConnect.Brokerages.Backtesting
         /// </summary>
         public virtual void Scan()
         {
+            // if simulator is installed, we run it
+            Algorithm.AssignmentModel?.SimulateMarketConditions(this, Algorithm);
+
             lock (_needsScanLock)
             {
                 // there's usually nothing in here
@@ -442,15 +445,6 @@ namespace QuantConnect.Brokerages.Backtesting
                 // if there are still pending orders
                 _needsScan = stillNeedsScan || !_pending.IsEmpty;
             }
-        }
-
-        /// <summary>
-        /// Runs market simulation
-        /// </summary>
-        public void SimulateMarket()
-        {
-            // if simulator is installed, we run it
-            Algorithm.MarketSimulation?.SimulateMarketConditions(this, Algorithm);
         }
 
         /// <summary>

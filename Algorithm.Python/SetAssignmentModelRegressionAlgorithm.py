@@ -15,9 +15,9 @@ from AlgorithmImports import *
 from QuantConnect.Algorithm.CSharp import *
 
 ### <summary>
-### Regression algorithm asserting that the correct market simulation instance is used when setting it using IAlgorithm.SetMarketSimulation
+### Regression algorithm asserting that the correct market simulation instance is used when setting it using IAlgorithm.SetAssignmentModel
 ### </summary>
-class SetMarketSimulationRegressionAlgorithm(QCAlgorithm):
+class SetAssignmentModelRegressionAlgorithm(QCAlgorithm):
 
     def Initialize(self):
         self.SetStartDate(2015, 12, 24)
@@ -29,15 +29,15 @@ class SetMarketSimulationRegressionAlgorithm(QCAlgorithm):
         self._simulateMarketConditionsCallCount = 0
 
         try:
-            self.SetMarketSimulation(None)
-            raise Exception("Expected SetMarketSimulation to throw an exception when passed null")
+            self.SetAssignmentModel(None)
+            raise Exception("Expected SetAssignmentModel to throw an exception when passed null")
         except ArgumentNullException:
             # expected
             pass
 
-        marketSimulation = TestMarketSimulation()
-        marketSimulation.OnSimulate += self._incrementSimulationCount
-        self.SetMarketSimulation(marketSimulation)
+        assignmentModel = TestAssignmentModel()
+        assignmentModel.OnSimulate += self._incrementSimulationCount
+        self.SetAssignmentModel(assignmentModel)
 
     def OnEndOfAlgorithm(self):
         if self._incrementSimulationCount == 0:

@@ -29,7 +29,7 @@ using QuantConnect.Data;
 namespace QuantConnect.Tests.Engine
 {
     [TestFixture, Parallelizable(ParallelScope.Fixtures)]
-    public class BasicOptionAssignmentSimulationTests
+    public class BasicOptionAssignmentModelTests
     {
         private static readonly SecurityExchangeHours SecurityExchangeHours = SecurityExchangeHours.AlwaysOpen(TimeZones.NewYork);
 
@@ -37,7 +37,7 @@ namespace QuantConnect.Tests.Engine
         public void GenerateSimulationDatesFromOptionExpirations()
         {
             var algorithm = new QCAlgorithm();
-            var sim = new BasicOptionAssignmentSimulation();
+            var sim = new BasicOptionAssignmentModel();
 
             algorithm.SetBrokerageModel(BrokerageName.InteractiveBrokersBrokerage);
             algorithm.SetCash(100000);
@@ -127,7 +127,7 @@ namespace QuantConnect.Tests.Engine
             var underlyingSymbol = securityType == SecurityType.Index ? Symbols.SPX : Symbols.SPY;
             var settlementType = securityType == SecurityType.Index ? SettlementType.Cash : SettlementType.PhysicalDelivery;
             var algorithm = new QCAlgorithm();
-            var sim = new BasicOptionAssignmentSimulation();
+            var sim = new BasicOptionAssignmentModel();
             var securities = new SecurityManager(TimeKeeper);
             var brokerage = new Mock<BacktestingBrokerage>(algorithm);
 
