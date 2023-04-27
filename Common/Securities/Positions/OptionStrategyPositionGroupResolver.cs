@@ -180,7 +180,8 @@ namespace QuantConnect.Securities.Positions
         {
             foreach (var positionsByUnderlying in positions
                 .Where(position => position.Symbol.SecurityType.HasOptions() || position.Symbol.SecurityType.IsOption())
-                .GroupBy(position => position.Symbol.HasUnderlying? position.Symbol.Underlying : position.Symbol))
+                .GroupBy(position => position.Symbol.HasUnderlying? position.Symbol.Underlying : position.Symbol)
+                .Select(x => x.ToList()))
             {
                 var optionPosition = positionsByUnderlying.FirstOrDefault(position => position.Symbol.SecurityType.IsOption());
                 if (optionPosition == null)
@@ -192,12 +193,27 @@ namespace QuantConnect.Securities.Positions
 
                 var optionPositionCollection = OptionPositionCollection.FromPositions(positionsByUnderlying, contractMultiplier);
 
-                if (optionPositionCollection.Count == 0 && positionsByUnderlying.Any())
+                if (optionPositionCollection.Count == 0 && positionsByUnderlying.Count > 0)
                 {
                     var resultingPositions = new List<IPosition>();
                     var key = new PositionGroupKey(new OptionStrategyPositionGroupBuyingPowerModel(null), resultingPositions);
                     // we could be liquidating there will be no position left!
                     yield return new PositionGroup(key, new Dictionary<Symbol, IPosition>());
+                    yield break;
+                }
+
+                // liquidating part of the strategy, only one leg left, still valid but won't be matched by any strategy definition
+                if (optionPositionCollection.Count == 1 && positionsByUnderlying.Count > 1)
+                {
+                    var onlyOptionPosition = optionPositionCollection.First();
+                    var position = positions.First(p => p.Symbol == onlyOptionPosition.Symbol);
+                    var resultingPositions = new[]
+                    {
+                        new Position(position.Symbol, onlyOptionPosition.Quantity, position.UnitQuantity)
+                    };
+                    var key = new PositionGroupKey(new OptionStrategyPositionGroupBuyingPowerModel(null), resultingPositions);
+
+                    yield return new PositionGroup(key, resultingPositions);
                     yield break;
                 }
 
