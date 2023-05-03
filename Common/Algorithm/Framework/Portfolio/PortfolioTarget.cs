@@ -14,10 +14,15 @@
 */
 
 using System;
+using System.Linq;
+using System.Collections.Generic;
+
 using QuantConnect.Interfaces;
 using QuantConnect.Securities;
-using System.Collections.Generic;
 using QuantConnect.Securities.Positions;
+using QuantConnect.Securities.Option;
+
+using static QuantConnect.Securities.Option.OptionStrategy;
 
 namespace QuantConnect.Algorithm.Framework.Portfolio
 {
@@ -121,6 +126,72 @@ namespace QuantConnect.Algorithm.Framework.Portfolio
             var quantity = result.NumberOfLots * lotSize + (returnDeltaQuantity ? 0 : security.Holdings.Quantity);
 
             return new PortfolioTarget(symbol, quantity);
+        }
+
+        /// <summary>
+        /// Creates a new target for the specified percent
+        /// </summary>
+        /// <param name="algorithm">The algorithm instance, used for getting total portfolio value and current security price</param>
+        /// <param name="symbol">The symbol the target is for</param>
+        /// <param name="percent">The requested target percent of total portfolio value</param>
+        /// <param name="returnDeltaQuantity">True, result quantity will be the Delta required to reach target percent.
+        /// False, the result quantity will be the Total quantity to reach the target percent, including current holdings</param>
+        /// <returns>A portfolio target for the specified symbol/percent</returns>
+        public static decimal Percent(IAlgorithm algorithm, OptionStrategy optionStrategy, decimal percent, bool returnDeltaQuantity = false)
+        {
+            var absolutePercentage = Math.Abs(percent);
+            if (absolutePercentage > algorithm.Settings.MaxAbsolutePortfolioTargetPercentage
+                || absolutePercentage != 0 && absolutePercentage < algorithm.Settings.MinAbsolutePortfolioTargetPercentage)
+            {
+                algorithm.Error(Messages.PortfolioTarget.InvalidTargetPercent(algorithm, percent));
+                return 0;
+            }
+
+            foreach (var leg in optionStrategy.OptionLegs.Cast<LegData>().Concat(optionStrategy.UnderlyingLegs))
+            {
+                if (!algorithm.Securities.TryGetValue(leg.Symbol, out var security))
+                {
+                    algorithm.Error(Messages.PortfolioTarget.SymbolNotFound(leg.Symbol));
+                    return 0;
+                }
+
+                if (security.Price == 0)
+                {
+                    algorithm.Error(leg.Symbol.GetZeroPriceMessage());
+                    return 0;
+                }
+            }
+
+            // Factoring in FreePortfolioValuePercentage.
+            var adjustedPercent = percent * (algorithm.Portfolio.TotalPortfolioValue - algorithm.Settings.FreePortfolioValue)
+                                  / algorithm.Portfolio.TotalPortfolioValue;
+
+            // we normalize the target buying power by the leverage so we work in the land of margin
+            var targetFinalMarginPercentage = adjustedPercent;
+
+            // Create position group
+            var positionGroup = algorithm.Portfolio.Positions.CreatePositionGroup(optionStrategy);
+            var result = positionGroup.BuyingPowerModel.GetMaximumLotsForTargetBuyingPower(
+                new GetMaximumLotsForTargetBuyingPowerParameters(algorithm.Portfolio, positionGroup,
+                    targetFinalMarginPercentage, algorithm.Settings.MinimumOrderMarginPortfolioPercentage));
+
+            if (result.IsError)
+            {
+                //algorithm.Error(Messages.PortfolioTarget.UnableToComputeOrderQuantityDueToNullResult(symbol, result));
+                // TODO: should move the message to Messages.PortfolioTarget
+                algorithm.Error($"Unable to compute order quantity of {positionGroup.Key}. Reason: {result.Reason} Returning 0.");
+                return 0;
+            }
+
+            var quantity = result.NumberOfLots;
+            // be sure to back out existing holdings quantity since the buying power model yields
+            // the required delta quantity to reach a final target portfolio value for a symbol
+            if (!returnDeltaQuantity && algorithm.Portfolio.PositionGroups.TryGetGroup(positionGroup.Key, out var holdingsPositionGroup))
+            {
+                quantity += holdingsPositionGroup.Quantity;
+            }
+
+            return quantity;
         }
 
         /// <summary>Returns a string that represents the current object.</summary>

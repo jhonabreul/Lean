@@ -24,6 +24,8 @@ using static QuantConnect.StringExtensions;
 using QuantConnect.Algorithm.Framework.Portfolio;
 using QuantConnect.Orders.TimeInForces;
 
+using static QuantConnect.Securities.Option.OptionStrategy;
+
 namespace QuantConnect.Algorithm
 {
     public partial class QCAlgorithm
@@ -1234,6 +1236,24 @@ namespace QuantConnect.Algorithm
         }
 
         /// <summary>
+        /// Automatically place a market order which will set the holdings to between 100% or -100% of *PORTFOLIO VALUE*.
+        /// E.g. SetHoldings("AAPL", 0.1); SetHoldings("IBM", -0.2); -> Sets portfolio as long 10% APPL and short 20% IBM
+        /// E.g. SetHoldings("AAPL", 2); -> Sets apple to 2x leveraged with all our cash.
+        /// If the market is closed, place a market on open order.
+        /// </summary>
+        /// <param name="symbol">Symbol indexer</param>
+        /// <param name="percentage">decimal fraction of portfolio to set stock</param>
+        /// <param name="liquidateExistingHoldings">bool flag to clean all existing holdings before setting new faction.</param>
+        /// <param name="tag">Tag the order with a short string.</param>
+        /// <param name="orderProperties">The order properties to use. Defaults to <see cref="DefaultOrderProperties"/></param>
+        /// <seealso cref="MarketOrder(QuantConnect.Symbol,decimal,bool,string)"/>
+        [DocumentationAttribute(TradingAndOrders)]
+        public void SetHoldings(OptionStrategy optionStrategy, decimal percentage, bool liquidateExistingHoldings = false, string tag = "", IOrderProperties orderProperties = null)
+        {
+            SetHoldingsImpl(optionStrategy, CalculateOrderQuantity(optionStrategy, percentage), liquidateExistingHoldings, tag, orderProperties);
+        }
+
+        /// <summary>
         /// Set holdings implementation, which uses order quantities (delta) not percentage nor target final quantity
         /// </summary>
         private void SetHoldingsImpl(Symbol symbol, decimal orderQuantity, bool liquidateExistingHoldings = false, string tag = "", IOrderProperties orderProperties = null)
@@ -1271,6 +1291,67 @@ namespace QuantConnect.Algorithm
                 {
                     MarketOnOpenOrder(symbol, quantity, tag, orderProperties);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Set holdings implementation, which uses order quantities (delta) not percentage nor target final quantity
+        /// </summary>
+        private void SetHoldingsImpl(OptionStrategy optionStrategy, int orderQuantity, bool liquidateExistingHoldings = false, string tag = "",
+            IOrderProperties orderProperties = null)
+        {
+            ////If they triggered a liquidate
+            //if (liquidateExistingHoldings)
+            //{
+            //    LiquidateExistingHoldings(new HashSet<Symbol> { symbol }, tag, orderProperties);
+            //}
+
+            ////Calculate total unfilled quantity for open market orders
+            //var marketOrdersQuantity = Transactions.GetOpenOrderTickets(
+            //        ticket => ticket.Symbol == symbol
+            //                  && (ticket.OrderType == OrderType.Market
+            //                      || ticket.OrderType == OrderType.MarketOnOpen))
+            //    .Aggregate(0m, (d, ticket) => d + ticket.Quantity - ticket.QuantityFilled);
+
+            //Only place trade if we've got > 1 share to order.
+            //var quantity = orderQuantity - marketOrdersQuantity;
+            var quantity = orderQuantity;
+            if (Math.Abs(quantity) > 0)
+            {
+                // if the option strategy canonical is set let's use it to make sure we target the right option, for example SPXW for SPX underlying,
+                // it could be null if the user created the option strategy manually and just set the underlying, in which case we use the default option target by using 'null'
+                var targetOption = optionStrategy.CanonicalOption != null ? optionStrategy.CanonicalOption.Canonical.ID.Symbol : null;
+
+                var legs = new List<Leg>(optionStrategy.UnderlyingLegs);
+
+                // TODO: Option legs don't have the symbols!
+                foreach (var optionLeg in optionStrategy.OptionLegs)
+                {
+                    Leg leg = null;
+                    Symbol symbol = null;
+                    // search for both american/european style -- much better than looping through all securities
+                    foreach (var optionStyle in new[] { OptionStyle.American, OptionStyle.European })
+                    {
+                        symbol = QuantConnect.Symbol.CreateOption(optionStrategy.Underlying, targetOption, optionStrategy.Underlying.ID.Market,
+                            optionStyle, optionLeg.Right, optionLeg.Strike, optionLeg.Expiration);
+                        if (Securities.ContainsKey(symbol))
+                        {
+                            // we found it, we add it a break/stop searching
+                            leg = new Leg { Symbol = symbol, OrderPrice = optionLeg.OrderPrice, Quantity = optionLeg.Quantity };
+                            break;
+                        }
+                    }
+
+                    if (leg == null)
+                    {
+                        Error("Couldn't find the option contract in algorithm securities list. " +
+                            Invariant($"Underlying: {optionStrategy.Underlying}, option {optionLeg.Right}, strike {optionLeg.Strike}, ") +
+                            Invariant($"expiration: {optionLeg.Expiration}"));
+                    }
+                    legs.Add(leg);
+                }
+
+               Order(optionStrategy, quantity, tag: tag, orderProperties: orderProperties);
             }
         }
 
@@ -1325,6 +1406,56 @@ namespace QuantConnect.Algorithm
                 return 0;
             }
             return percent.Quantity;
+        }
+
+        /// <summary>
+        /// Calculate the order quantity to achieve target-percent holdings.
+        /// </summary>
+        /// <param name="symbol">Security object we're asking for</param>
+        /// <param name="target">Target percentage holdings, this is an unleveraged value, so
+        /// if you have 2x leverage and request 100% holdings, it will utilize half of the
+        /// available margin</param>
+        /// <returns>Order quantity to achieve this percentage</returns>
+        [DocumentationAttribute(TradingAndOrders)]
+        public int CalculateOrderQuantity(OptionStrategy optionStrategy, decimal target)
+        {
+            // if the option strategy canonical is set let's use it to make sure we target the right option, for example SPXW for SPX underlying,
+            // it could be null if the user created the option strategy manually and just set the underlying, in which case we use the default option target by using 'null'
+            var targetOption = optionStrategy.CanonicalOption != null ? optionStrategy.CanonicalOption.Canonical.ID.Symbol : null;
+
+            foreach (var optionLeg in optionStrategy.OptionLegs)
+            {
+                Leg leg = null;
+                Symbol symbol = null;
+                // search for both american/european style -- much better than looping through all securities
+                foreach (var optionStyle in new[] { OptionStyle.American, OptionStyle.European })
+                {
+                    symbol = QuantConnect.Symbol.CreateOption(optionStrategy.Underlying, targetOption, optionStrategy.Underlying.ID.Market,
+                        optionStyle, optionLeg.Right, optionLeg.Strike, optionLeg.Expiration);
+                    if (Securities.ContainsKey(symbol))
+                    {
+                        // we found it, we add it a break/stop searching
+                        leg = new Leg { Symbol = symbol, OrderPrice = optionLeg.OrderPrice, Quantity = optionLeg.Quantity };
+                        break;
+                    }
+                }
+
+                if (leg == null)
+                {
+                    Error("Couldn't find the option contract in algorithm securities list. " +
+                        Invariant($"Underlying: {optionStrategy.Underlying}, option {optionLeg.Right}, strike {optionLeg.Strike}, ") +
+                        Invariant($"expiration: {optionLeg.Expiration}"));
+                }
+                optionLeg.Symbol = symbol;
+            }
+
+            var percent = PortfolioTarget.Percent(this, optionStrategy, target, true);
+
+            //if (percent == null)
+            //{
+            //    return 0;
+            //}
+            return (int)percent;
         }
 
         /// <summary>
