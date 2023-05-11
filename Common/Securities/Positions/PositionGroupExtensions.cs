@@ -59,20 +59,24 @@ namespace QuantConnect.Securities.Positions
 
         /// <summary>
         /// Creates a new <see cref="IPositionGroup"/> with the specified <paramref name="groupQuantity"/>.
-        /// If the quantity provided equals the template's quantity then the template is returned.
         /// </summary>
         /// <param name="template">The group template</param>
         /// <param name="groupQuantity">The quantity of the new group</param>
-        /// <returns>A position group with the same position ratios as the template but with the specified group quantity</returns>
+        /// <returns>A position group with the same position ratios as the template but with the unit group quantity</returns>
         public static IPositionGroup WithQuantity(this IPositionGroup template, decimal groupQuantity)
         {
-            if (template.Quantity == groupQuantity)
-            {
-                return template;
-            }
-
             var positions = template.ToArray(p => p.WithLots(groupQuantity));
             return new PositionGroup(template.Key, positions);
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="IPositionGroup"/> with each position's quantity equaling it's unit quantity
+        /// </summary>
+        /// <param name="template">The group template</param>
+        /// <returns>A position group with the same position ratios as the template but with the specified group quantity</returns>
+        public static IPositionGroup CreateUnitGroup(this IPositionGroup template)
+        {
+            return template.WithQuantity(1);
         }
 
         /// <summary>
