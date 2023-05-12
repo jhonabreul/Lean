@@ -108,6 +108,53 @@ namespace QuantConnect.Tests.Common.Securities.Positions
             AssertPositionGroup(group, groupQuantity, expectedTemplatePositions);
         }
 
+        [TestCase(10, new[] { 1, 5 }, 5, new[] { 1, 5 }, false)]
+        [TestCase(10, new[] { 1, 5 }, -5, new[] { 1, 5 }, true)]
+        [TestCase(10, new[] { 1, 5 }, 20, new[] { 1, 5 }, false)]
+        [TestCase(10, new[] { 1, 5 }, -20, new[] { 1, 5 }, true)]
+        [TestCase(-10, new[] { 1, 5 }, 5, new[] { 1, 5 }, true)]
+        [TestCase(-10, new[] { 1, 5 }, -5, new[] { 1, 5 }, false)]
+        [TestCase(-10, new[] { 1, 5 }, 20, new[] { 1, 5 }, true)]
+        [TestCase(-10, new[] { 1, 5 }, -20, new[] { 1, 5 }, false)]
+
+        [TestCase(10, new[] { 1, 5 }, 5, new[] { -1, -5 }, true)]
+        [TestCase(10, new[] { 1, 5 }, -5, new[] { -1, -5 }, false)]
+        [TestCase(10, new[] { 1, 5 }, 20, new[] { -1, -5 }, true)]
+        [TestCase(10, new[] { 1, 5 }, -20, new[] { -1, -5 }, false)]
+        [TestCase(-10, new[] { 1, 5 }, 5, new[] { -1, -5 }, false)]
+        [TestCase(-10, new[] { 1, 5 }, -5, new[] { -1, -5 }, true)]
+        [TestCase(-10, new[] { 1, 5 }, 20, new[] { -1, -5 }, false)]
+        [TestCase(-10, new[] { 1, 5 }, -20, new[] { -1, -5 }, true)]
+
+        [TestCase(10, new[] { 1, 5 }, 5, new[] { -1, 5 }, false)]
+        [TestCase(10, new[] { 1, 5 }, -5, new[] { -1, 5 }, false)]
+        [TestCase(10, new[] { 1, 5 }, 20, new[] { -1, 5 }, false)]
+        [TestCase(10, new[] { 1, 5 }, -20, new[] { -1, 5 }, false)]
+        [TestCase(-10, new[] { 1, 5 }, 5, new[] { -1, 5 }, false)]
+        [TestCase(-10, new[] { 1, 5 }, -5, new[] { -1, 5 }, false)]
+        [TestCase(-10, new[] { 1, 5 }, 20, new[] { -1, 5 }, false)]
+        [TestCase(-10, new[] { 1, 5 }, -20, new[] { -1, 5 }, false)]
+
+        [TestCase(10, new[] { -1, 5 }, 5, new[] { -1, 5 }, false)]
+        [TestCase(10, new[] { -1, 5 }, -5, new[] { -1, 5 }, true)]
+        [TestCase(10, new[] { -1, 5 }, 20, new[] { -1, 5 }, false)]
+        [TestCase(10, new[] { -1, 5 }, -20, new[] { -1, 5 }, true)]
+        [TestCase(10, new[] { -1, 5 }, 5, new[] { 1, -5 }, true)]
+        [TestCase(10, new[] { -1, 5 }, -5, new[] { 1, -5 }, false)]
+        [TestCase(10, new[] { -1, 5 }, 20, new[] { 1, -5 }, true)]
+        [TestCase(10, new[] { -1, 5 }, -20, new[] { 1, -5 }, false)]
+        public void PositionGroupClosesAnother(int originalGroupQuantity, int[] originalGroupPositionsUnitQuantities,
+            int targetGroupQuantity, int[] targetGroupPositionsUnitQuantities, bool expectedResult)
+        {
+            Assert.AreEqual(originalGroupPositionsUnitQuantities.Length, targetGroupPositionsUnitQuantities.Length);
+
+            var symbols = GetSymbols(originalGroupPositionsUnitQuantities.Length);
+            var originalGroup = CreatePositionGroup(originalGroupQuantity, symbols, originalGroupPositionsUnitQuantities);
+            var targetGroup = CreatePositionGroup(targetGroupQuantity, symbols, targetGroupPositionsUnitQuantities);
+
+            Assert.AreEqual(expectedResult, originalGroup.Closes(targetGroup));
+        }
+
         private static List<Symbol> GetSymbols(int count)
         {
             var baseExpiry = new DateTime(2023, 05, 19);
@@ -131,7 +178,8 @@ namespace QuantConnect.Tests.Common.Securities.Positions
         /// </summary>
         private static void AssertPositionGroup(IPositionGroup group, int expectedQuantity, List<IPosition> expectedPositions)
         {
-            Assert.AreEqual(Math.Abs(expectedQuantity), Math.Abs(group.Quantity));
+            var expectedAbsQuantity = Math.Abs(expectedQuantity);
+            Assert.AreEqual(expectedAbsQuantity, Math.Abs(group.Quantity));
             Assert.AreEqual(expectedPositions.Count, group.Count);
 
             foreach (var expectedPosition in expectedPositions)
@@ -139,6 +187,9 @@ namespace QuantConnect.Tests.Common.Securities.Positions
                 var position = group.GetPosition(expectedPosition.Symbol);
                 Assert.AreEqual(expectedPosition.Quantity, position.Quantity);
                 Assert.AreEqual(expectedPosition.UnitQuantity, position.UnitQuantity);
+
+                // The position group quantity should be a ratio shared by all positions
+                Assert.AreEqual(expectedAbsQuantity, Math.Abs(position.Quantity) / position.UnitQuantity);
             }
         }
     }

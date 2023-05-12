@@ -91,5 +91,17 @@ namespace QuantConnect.Securities.Positions
 
             return string.Join("|", group.Select(p => p.Symbol.ToString()));
         }
+
+        /// <summary>
+        /// Checks whether the provided groups are closing/reducing each other, that is, each of their positions are in opposite sides.
+        /// </summary>
+        /// <param name="group">Source position group</param>
+        /// <param name="target">Target position group</param>
+        /// <returns>Whether the position groups close/reduce each other</returns>
+        public static bool Closes(this IPositionGroup group, IPositionGroup target)
+        {
+            return group.Key == target.Key
+                && group.All(position => Math.Sign(position.Quantity) != Math.Sign(target.GetPosition(position.Symbol).Quantity));
+        }
     }
 }

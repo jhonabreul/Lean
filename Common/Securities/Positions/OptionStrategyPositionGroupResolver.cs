@@ -211,7 +211,8 @@ namespace QuantConnect.Securities.Positions
                 {
                     var positionsToGroup = matchedStrategy.OptionLegs
                         .Select(optionLeg => (IPosition)new Position(optionLeg.Symbol, optionLeg.Quantity, 1))
-                        .Concat(matchedStrategy.UnderlyingLegs.Select(underlyingLeg => new Position(underlyingLeg.Symbol, underlyingLeg.Quantity * contractMultiplier, 1)))
+                        .Concat(matchedStrategy.UnderlyingLegs.Select(underlyingLeg => new Position(underlyingLeg.Symbol,
+                            underlyingLeg.Quantity * contractMultiplier, contractMultiplier)))
                         .ToArray();
 
                     yield return new PositionGroup(new OptionStrategyPositionGroupBuyingPowerModel(matchedStrategy), positionsToGroup);

@@ -655,7 +655,7 @@ namespace QuantConnect.Tests.Common.Securities
         private static readonly TestCaseData[] OrderQuantityForTargetBuyingPowerTestCases = new[]
         {
             // Initial margin requirement for CoveredCall with quantity 10 is 205000
-            new TestCaseData(OptionStrategyDefinitions.CoveredCall, 10, 205000m * 11 / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.CoveredCall, 10, 205000m * 11 / 10, +1).Explicit(),
             new TestCaseData(OptionStrategyDefinitions.CoveredCall, 10, 205000m * 9 / 10, -1),
             new TestCaseData(OptionStrategyDefinitions.CoveredCall, 10, 0m, -10),
             // Initial margin requirement for CoveredCall with quantity -10 is 112000

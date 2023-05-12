@@ -290,7 +290,7 @@ namespace QuantConnect.Securities.Positions
             var direction = Math.Sign(signedTarget);
 
             // 6. Resolve 'unit' -- this defines our step size
-            var groupUnit = parameters.PositionGroup.Key.CreateUnitGroup();
+            var groupUnit = parameters.PositionGroup.CreateUnitGroup();
 
             // 7. Compute initial margin requirement for a single unit
             var absUnitMargin = this.GetInitialMarginRequirement(portfolio, groupUnit);
@@ -446,7 +446,7 @@ namespace QuantConnect.Securities.Positions
             // 2. Determine if closing position
             IPositionGroup existing;
             if (parameters.Portfolio.Positions.Groups.TryGetGroup(parameters.PositionGroup.Key, out existing) &&
-                parameters.Direction.Closes(existing.GetPositionSide()))
+                parameters.PositionGroup.Closes(existing))
             {
                 // 2a. Add reserved buying power of current position
                 buyingPower += GetReservedBuyingPowerForPositionGroup(parameters);
