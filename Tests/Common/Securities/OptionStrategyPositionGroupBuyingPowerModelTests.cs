@@ -361,9 +361,9 @@ namespace QuantConnect.Tests.Common.Securities
                 {
                     fullLiquidationCaseConsidered = true;
                 }
-                else if (newPositionQuantity < 0)
+                else if (initialHoldingsQuantity + strategyQuantity < 0)
                 {
-                    if (newPositionQuantity > initialHoldingsQuantity)
+                    if (newPositionQuantity < Math.Abs(initialHoldingsQuantity))
                     {
                         partialLiquidationCaseConsidered = true;
                     }
@@ -429,14 +429,12 @@ namespace QuantConnect.Tests.Common.Securities
             Assert.IsTrue(hasSufficientBuyingPowerResult.IsSufficient);
         }
 
-        // Going even shorter
+        // Increasing short position
         [TestCase(-10, -11)]
-        // Going "less" short
+        // Decreasing short position
         [TestCase(-10, -9)]
         // Liquidating
         [TestCase(-10, 0)]
-        // Going long from short
-        [TestCase(-10, 10)]
         public void PositionGroupOrderQuantityCalculationForDeltaBuyingPowerFromShortPosition(int initialHoldingsQuantity, int finalPositionQuantity)
         {
             _algorithm.SetCash(100000);
@@ -460,14 +458,12 @@ namespace QuantConnect.Tests.Common.Securities
             ComputeAndAssertQuantityForDeltaBuyingPower(positionGroup, expectedQuantity, deltaBuyingPower);
         }
 
-        // Going even longer
+        // Increasing position
         [TestCase(10, 11)]
-        // Going "less" long
+        // Decreasing position
         [TestCase(10, 9)]
         // Liquidating
         [TestCase(10, 0)]
-        // Going short from long
-        [TestCase(10, -10)]
         public void PositionGroupOrderQuantityCalculationForDeltaBuyingPowerFromLongPosition(int initialHoldingsQuantity, int finalPositionQuantity)
         {
             _algorithm.SetCash(100000);
@@ -496,14 +492,10 @@ namespace QuantConnect.Tests.Common.Securities
 
         [TestCase(-10, 1, +1)]
         [TestCase(-10, 1, -1)]
-        [TestCase(-10, 2, +1)]
-        [TestCase(-10, 2, -1)]
         [TestCase(-10, 0.5, +1)]
         [TestCase(-10, 0.5, -1)]
         [TestCase(10, 1, +1)]
         [TestCase(10, 1, -1)]
-        [TestCase(10, 2, +1)]
-        [TestCase(10, 2, -1)]
         [TestCase(10, 0.5, +1)]
         [TestCase(10, 0.5, -1)]
         public void OrderQuantityCalculation(int initialHoldingsQuantity, decimal targetMarginPercent, int targetMarginDirection)
@@ -515,29 +507,22 @@ namespace QuantConnect.Tests.Common.Securities
             SetUpOptionStrategy(initialHoldingsQuantity);
             var positionGroup = _portfolio.PositionGroups.Single();
 
-            var expectedQuantity = Math.Sign(targetMarginDirection) * initialHoldingsQuantity * targetMarginPercent;
-            var finalPositionQuantity = initialHoldingsQuantity + expectedQuantity;
+            var expectedQuantity = Math.Abs(initialHoldingsQuantity * targetMarginPercent) * Math.Sign(targetMarginDirection);
+            var finalPositionQuantity = initialHoldingsQuantity + Math.Sign(initialHoldingsQuantity) * expectedQuantity;
 
             var buyingPowerModel = positionGroup.BuyingPowerModel as PositionGroupBuyingPowerModel;
 
-            var longUnitGroup = positionGroup.Key.CreateUnitGroup();
-            var longUnitMargin = buyingPowerModel.GetInitialMarginRequirement(_portfolio, longUnitGroup);
+            var unitGroup = PositionGroupBuyingPowerModel.CreatePositionGroupWithQuantity(positionGroup, 1);
+            var unitMargin = Math.Abs(buyingPowerModel.GetInitialMarginRequirement(_portfolio, unitGroup));
 
-            var shortUnitGroup = positionGroup.WithQuantity(-1);
-            var shortUnitMargin = buyingPowerModel.GetInitialMarginRequirement(_portfolio, shortUnitGroup);
+            var targetFinalMargin = Math.Abs(finalPositionQuantity * unitMargin);
 
-            var targetFinalMargin = finalPositionQuantity < 0
-                // Final position will be short
-                ? -finalPositionQuantity * shortUnitMargin
-                // Final position will be long (or closed)
-                : finalPositionQuantity * longUnitMargin;
-
-            var currentUsedMargin = buyingPowerModel.GetInitialMarginRequirement(_portfolio, positionGroup);
+            var currentUsedMargin = buyingPowerModel.GetReservedBuyingPowerForPositionGroup(_portfolio, positionGroup);
 
             var quantity = buyingPowerModel.GetPositionGroupOrderQuantity(_portfolio, positionGroup, currentUsedMargin, targetFinalMargin,
-                longUnitGroup, longUnitMargin, out _);
+                unitGroup, unitMargin, out _);
 
-            // Reducing the position or going shorter
+            // Reducing the position
             if (targetFinalMargin < currentUsedMargin)
             {
                 Assert.Less(quantity, 0);
@@ -551,7 +536,8 @@ namespace QuantConnect.Tests.Common.Securities
             // Liquidating
             if (targetFinalMargin == 0)
             {
-                Assert.AreEqual(-initialHoldingsQuantity, quantity);
+                // Should always be negative when liquidating (or reducing)
+                Assert.AreEqual(-Math.Abs(initialHoldingsQuantity), quantity);
             }
 
             Assert.AreEqual(expectedQuantity, quantity);
@@ -671,123 +657,123 @@ namespace QuantConnect.Tests.Common.Securities
         // option strategy definition, initial position quantity, final position quantity
         private static readonly TestCaseData[] OrderQuantityForDeltaBuyingPowerTestCases = new[]
         {
-            // Signed maintenance margin for CoveredCall with quantity 10 is -205000
-            new TestCaseData(OptionStrategyDefinitions.CoveredCall, 10, -205000m / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.CoveredCall, 10, 205000m / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.CoveredCall, 10, 205000m, -10).Explicit(), // This is failing on return parameters.Result(-currentPositionGroup.Quantity); quantity is wrong!
-            // Signed maintenance margin for CoveredCall with quantity -10 is 166000
-            new TestCaseData(OptionStrategyDefinitions.CoveredCall, -10, 166000m / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.CoveredCall, -10, -166000m / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.CoveredCall, -10, -166000m, +10).Explicit(), // This is failing on return parameters.Result(-currentPositionGroup.Quantity); quantity is wrong!
-            // Signed maintenance margin for CoveredPut with quantity 10 is -205000
-            new TestCaseData(OptionStrategyDefinitions.CoveredPut, 10, -205000m / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.CoveredPut, 10, 205000m / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.CoveredPut, 10, 205000m, -10).Explicit(), // This is failing on return parameters.Result(-currentPositionGroup.Quantity); quantity is wrong!
-            // Signed maintenance margin for CoveredPut with quantity -10 is 205000
-            new TestCaseData(OptionStrategyDefinitions.CoveredPut, -10, 205000m / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.CoveredPut, -10, -205000m / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.CoveredPut, -10, -205000m, +10).Explicit(), // This is failing on return parameters.Result(-currentPositionGroup.Quantity); quantity is wrong!
-            // Signed maintenance margin for BearCallSpread with quantity 10 is -10000
-            new TestCaseData(OptionStrategyDefinitions.BearCallSpread, 10, -10000m / 10, +1).Explicit(), // This is failing because the unit group is not a bear call spread anymore!
-            new TestCaseData(OptionStrategyDefinitions.BearCallSpread, 10, 10000m / 10, -1).Explicit(), // This is failing because the unit group is not a bear call spread anymore!
-            new TestCaseData(OptionStrategyDefinitions.BearCallSpread, 10, 10000m, -10).Explicit(), // This is failing on return parameters.Result(-currentPositionGroup.Quantity); quantity is wrong!
-            // Signed maintenance margin for BearCallSpread with quantity -10 is 0
+            // Maintenance margin for CoveredCall with quantity 10 is 205000
+            new TestCaseData(OptionStrategyDefinitions.CoveredCall, 10, 205000m / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.CoveredCall, 10, -205000m / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.CoveredCall, 10, -205000m, -10),
+            // Maintenance margin for CoveredCall with quantity -10 is 166000
+            new TestCaseData(OptionStrategyDefinitions.CoveredCall, -10, 166000m / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.CoveredCall, -10, -166000m / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.CoveredCall, -10, -166000m, -10),
+            // Maintenance margin for CoveredPut with quantity 10 is 205000
+            new TestCaseData(OptionStrategyDefinitions.CoveredPut, 10, 205000m / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.CoveredPut, 10, -205000m / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.CoveredPut, 10, -205000m, -10),
+            // Maintenance margin for CoveredPut with quantity -10 is 205000
+            new TestCaseData(OptionStrategyDefinitions.CoveredPut, -10, 205000m / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.CoveredPut, -10, -205000m / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.CoveredPut, -10, -205000m, -10),
+            // Maintenance margin for BearCallSpread with quantity 10 is 10000
+            new TestCaseData(OptionStrategyDefinitions.BearCallSpread, 10, 10000m / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.BearCallSpread, 10, -10000m / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.BearCallSpread, 10, -10000m, -10),
+            // Maintenance margin for BearCallSpread with quantity -10 is 0
             new TestCaseData(OptionStrategyDefinitions.BearCallSpread, -10, 0m, 0),
             new TestCaseData(OptionStrategyDefinitions.BearCallSpread, -10, 1000m, 0),
             new TestCaseData(OptionStrategyDefinitions.BearCallSpread, -10, -10000m, 0),
-            // Signed maintenance margin for BearPutSpread with quantity 10 is 0
+            // Maintenance margin for BearPutSpread with quantity 10 is 0
             new TestCaseData(OptionStrategyDefinitions.BearPutSpread, 10, 0m, 0),
             new TestCaseData(OptionStrategyDefinitions.BearPutSpread, 10, 1000m, 0),
             new TestCaseData(OptionStrategyDefinitions.BearPutSpread, 10, -10000m, 0),
-            // Signed maintenance margin for BearPutSpread with quantity -10 is -10000
-            new TestCaseData(OptionStrategyDefinitions.BearPutSpread, -10, -10000m / 10, -1).Explicit(), // This is failing on return parameters.Result(-currentPositionGroup.Quantity); quantity is wrong!
-            new TestCaseData(OptionStrategyDefinitions.BearPutSpread, -10, 10000m / 10, +1).Explicit(), // This is failing on return parameters.Result(-currentPositionGroup.Quantity); quantity is wrong!
-            new TestCaseData(OptionStrategyDefinitions.BearPutSpread, -10, 10000m, +10),
-            // Signed maintenance margin for BullCallSpread with quantity 10 is 0
+            // Maintenance margin for BearPutSpread with quantity -10 is 10000
+            new TestCaseData(OptionStrategyDefinitions.BearPutSpread, -10, 10000m / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.BearPutSpread, -10, -10000m / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.BearPutSpread, -10, -10000m, -10),
+            // Maintenance margin for BullCallSpread with quantity 10 is 0
             new TestCaseData(OptionStrategyDefinitions.BullCallSpread, 10, 0m, 0),
             new TestCaseData(OptionStrategyDefinitions.BullCallSpread, 10, 1000m, 0),
             new TestCaseData(OptionStrategyDefinitions.BullCallSpread, 10, -1000m, 0),
-            // Signed maintenance margin for BullCallSpread with quantity -10 is -10000
-            new TestCaseData(OptionStrategyDefinitions.BullCallSpread, -10, -10000m / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.BullCallSpread, -10, 10000m / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.BullCallSpread, -10, 10000m, +10),
-            // Signed maintenance margin for BullPutSpread with quantity 10 is -10000
-            new TestCaseData(OptionStrategyDefinitions.BullPutSpread, 10, -10000m / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.BullPutSpread, 10, 10000m / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.BullPutSpread, 10, 10000m, -10).Explicit(),
-            // Signed maintenance margin for BullPutSpread with quantity -10 is 0
+            // Maintenance margin for BullCallSpread with quantity -10 is 10000
+            new TestCaseData(OptionStrategyDefinitions.BullCallSpread, -10, 10000m / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.BullCallSpread, -10, -10000m / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.BullCallSpread, -10, -10000m, -10),
+            // Maintenance margin for BullPutSpread with quantity 10 is 10000
+            new TestCaseData(OptionStrategyDefinitions.BullPutSpread, 10, 10000m / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.BullPutSpread, 10, -10000m / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.BullPutSpread, 10, -10000m, -10),
+            // Maintenance margin for BullPutSpread with quantity -10 is 0
             new TestCaseData(OptionStrategyDefinitions.BullPutSpread, -10, 0m, 0),
             new TestCaseData(OptionStrategyDefinitions.BullPutSpread, -10, 1000m, 0),
             new TestCaseData(OptionStrategyDefinitions.BullPutSpread, -10, -1000m, 0),
-            // Signed maintenance margin for Straddle with quantity 10 is 112020
+            // Maintenance margin for Straddle with quantity 10 is 112020
             new TestCaseData(OptionStrategyDefinitions.Straddle, 10, 112020m / 10, +1),
             new TestCaseData(OptionStrategyDefinitions.Straddle, 10, -112020m / 10, -1),
             new TestCaseData(OptionStrategyDefinitions.Straddle, 10, -112020m, -10),
-            // Signed maintenance margin for Straddle with quantity -10 is -235020
-            new TestCaseData(OptionStrategyDefinitions.Straddle, -10, -235020m / 10, -1), // Negative to increase, given the margin sign
+            // Maintenance margin for Straddle with quantity -10 is 235020
             new TestCaseData(OptionStrategyDefinitions.Straddle, -10, 235020m / 10, +1),
-            new TestCaseData(OptionStrategyDefinitions.Straddle, -10, 235020m, +10),
-            // Signed maintenance margin for Strangle with quantity 10 is 102020
+            new TestCaseData(OptionStrategyDefinitions.Straddle, -10, -235020m / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.Straddle, -10, -235020m, -10),
+            // Maintenance margin for Strangle with quantity 10 is 102020
             new TestCaseData(OptionStrategyDefinitions.Strangle, 10, 102020m / 10, +1),
             new TestCaseData(OptionStrategyDefinitions.Strangle, 10, -102020m / 10, -1),
             new TestCaseData(OptionStrategyDefinitions.Strangle, 10, -102020m, -10),
-            // Signed maintenance margin for Strangle with quantity -10 is -225020
-            new TestCaseData(OptionStrategyDefinitions.Strangle, -10, -225020m / 10, -1), // Negative to increase, given the margin sign
+            // Maintenance margin for Strangle with quantity -10 is 225020
             new TestCaseData(OptionStrategyDefinitions.Strangle, -10, 225020m / 10, +1),
-            new TestCaseData(OptionStrategyDefinitions.Strangle, -10, 225020m, +10),
-            // Signed maintenance margin for ButterflyCall with quantity 10 is 0
+            new TestCaseData(OptionStrategyDefinitions.Strangle, -10, -225020m / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.Strangle, -10, -225020m, -10),
+            // Maintenance margin for ButterflyCall with quantity 10 is 0
             new TestCaseData(OptionStrategyDefinitions.ButterflyCall, 10, 0m, 0),
             new TestCaseData(OptionStrategyDefinitions.ButterflyCall, 10, 1000m, 0),
             new TestCaseData(OptionStrategyDefinitions.ButterflyCall, 10, -1000m, 0),
-            // Signed maintenance margin for ButterflyCall with quantity -10 is -10000
-            new TestCaseData(OptionStrategyDefinitions.ButterflyCall, -10, -10000m / 10, -1),
+            // Maintenance margin for ButterflyCall with quantity -10 is 10000
             new TestCaseData(OptionStrategyDefinitions.ButterflyCall, -10, 10000m / 10, +1),
-            new TestCaseData(OptionStrategyDefinitions.ButterflyCall, -10, 10000m, +10),
-            // Signed maintenance margin for ShortButterflyCall with quantity 10 is -10000
-            new TestCaseData(OptionStrategyDefinitions.ShortButterflyCall, 10, -10000m / 10, +1).Explicit(), // These are failing because PositonGroup.WithQuantity is wrong!
-            new TestCaseData(OptionStrategyDefinitions.ShortButterflyCall, 10, 10000m / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.ShortButterflyCall, 10, 10000m, -10).Explicit(),
-            // Signed maintenance margin for ShortButterflyCall with quantity -10 is 0
+            new TestCaseData(OptionStrategyDefinitions.ButterflyCall, -10, -10000m / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.ButterflyCall, -10, -10000m, -10),
+            // Maintenance margin for ShortButterflyCall with quantity 10 is 10000
+            new TestCaseData(OptionStrategyDefinitions.ShortButterflyCall, 10, 10000m / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.ShortButterflyCall, 10, -10000m / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.ShortButterflyCall, 10, -10000m, -10),
+            // Maintenance margin for ShortButterflyCall with quantity -10 is 0
             new TestCaseData(OptionStrategyDefinitions.ShortButterflyCall, -10, 0m, 0),
             new TestCaseData(OptionStrategyDefinitions.ShortButterflyCall, -10, 1000m, 0),
             new TestCaseData(OptionStrategyDefinitions.ShortButterflyCall, -10, -1000m, 0),
-            // Signed maintenance margin for ButterflyPut with quantity 10 is 0
+            // Maintenance margin for ButterflyPut with quantity 10 is 0
             new TestCaseData(OptionStrategyDefinitions.ButterflyPut, 10, 0m, 0),
             new TestCaseData(OptionStrategyDefinitions.ButterflyPut, 10, 1000m, 0),
             new TestCaseData(OptionStrategyDefinitions.ButterflyPut, 10, -1000m, 0),
-            // Signed maintenance margin for ButterflyPut with quantity -10 is -10000
-            new TestCaseData(OptionStrategyDefinitions.ButterflyPut, -10, -10000m / 10, -1),
+            // Maintenance margin for ButterflyPut with quantity -10 is 10000
             new TestCaseData(OptionStrategyDefinitions.ButterflyPut, -10, 10000m / 10, +1),
-            new TestCaseData(OptionStrategyDefinitions.ButterflyPut, -10, 10000m, +10),
-            // Signed maintenance margin for ShortButterflyPut with quantity 10 is 1000
-            new TestCaseData(OptionStrategyDefinitions.ShortButterflyPut, 10, -10000m / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.ShortButterflyPut, 10, 10000m / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.ShortButterflyPut, 10, 10000m, -10).Explicit(),
-            // Signed maintenance margin for ShortButterflyPut with quantity -10 is 0
+            new TestCaseData(OptionStrategyDefinitions.ButterflyPut, -10, -10000m / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.ButterflyPut, -10, -10000m, -10),
+            // Maintenance margin for ShortButterflyPut with quantity 10 is 1000
+            new TestCaseData(OptionStrategyDefinitions.ShortButterflyPut, 10, 10000m / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.ShortButterflyPut, 10, -10000m / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.ShortButterflyPut, 10, -10000m, -10),
+            // Maintenance margin for ShortButterflyPut with quantity -10 is 0
             new TestCaseData(OptionStrategyDefinitions.ShortButterflyPut, -10, 0m, 0),
             new TestCaseData(OptionStrategyDefinitions.ShortButterflyPut, -10, 1000m, 0),
             new TestCaseData(OptionStrategyDefinitions.ShortButterflyPut, -10, -1000m, 0),
-            // Signed maintenance margin for CallCalendarSpread with quantity 10 is 0
+            // Maintenance margin for CallCalendarSpread with quantity 10 is 0
             new TestCaseData(OptionStrategyDefinitions.CallCalendarSpread, 10, 0m, 0),
             new TestCaseData(OptionStrategyDefinitions.CallCalendarSpread, 10, 1000m, 0),
             new TestCaseData(OptionStrategyDefinitions.CallCalendarSpread, 10, -1000m, 0),
-            // Signed maintenance margin for CallCalendarSpread with quantity -10 is 0
+            // Maintenance margin for CallCalendarSpread with quantity -10 is 0
             new TestCaseData(OptionStrategyDefinitions.CallCalendarSpread, -10, 0m, 0),
             new TestCaseData(OptionStrategyDefinitions.CallCalendarSpread, -10, 1000m, 0),
             new TestCaseData(OptionStrategyDefinitions.CallCalendarSpread, -10, -1000m, 0),
-            // Signed maintenance margin for PutCalendarSpread with quantity 10 is 0
+            // Maintenance margin for PutCalendarSpread with quantity 10 is 0
             new TestCaseData(OptionStrategyDefinitions.PutCalendarSpread, 10, 0m, 0),
             new TestCaseData(OptionStrategyDefinitions.PutCalendarSpread, 10, 1000m, 0),
             new TestCaseData(OptionStrategyDefinitions.PutCalendarSpread, 10, -1000m, 0),
-            // Signed maintenance margin for PutCalendarSpread with quantity -10 is 0
+            // Maintenance margin for PutCalendarSpread with quantity -10 is 0
             new TestCaseData(OptionStrategyDefinitions.PutCalendarSpread, -10, 0m, 0),
             new TestCaseData(OptionStrategyDefinitions.PutCalendarSpread, -10, 1000m, 0),
             new TestCaseData(OptionStrategyDefinitions.PutCalendarSpread, -10, -1000m, 0),
-            // Signed maintenance margin for IronCondor with quantity 10 is 10000
-            new TestCaseData(OptionStrategyDefinitions.IronCondor, 10, 10000m / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.IronCondor, 10, -10000m / 10, -1).Explicit(),
+            // Maintenance margin for IronCondor with quantity 10 is 10000
+            new TestCaseData(OptionStrategyDefinitions.IronCondor, 10, 10000m / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.IronCondor, 10, -10000m / 10, -1),
             new TestCaseData(OptionStrategyDefinitions.IronCondor, 10, -10000m, -10),
-            // Signed maintenance margin for IronCondor with quantity -10 is 0
+            // Maintenance margin for IronCondor with quantity -10 is 0
             new TestCaseData(OptionStrategyDefinitions.IronCondor, -10, 0m, 0),
             new TestCaseData(OptionStrategyDefinitions.IronCondor, -10, 1000m, 0),
             new TestCaseData(OptionStrategyDefinitions.IronCondor, -10, -1000m, 0),
@@ -799,10 +785,10 @@ namespace QuantConnect.Tests.Common.Securities
         {
             var positionGroup = SetUpOptionStrategy(optionStrategyDefinition, initialPositionQuantity);
 
-            if (initialPositionQuantity + expectedQuantity != 0)
+            if (expectedQuantity != -Math.Abs(initialPositionQuantity)) // Not liquidating
             {
                 // Add a small buffer to avoid rounding errors
-                deltaBuyingPower *= Math.Abs(initialPositionQuantity + expectedQuantity) > Math.Abs(initialPositionQuantity) ? 1.001m : 0.999m;
+                deltaBuyingPower *= deltaBuyingPower > 0 ? 1.001m : 0.999m;
             }
 
             var result = positionGroup.BuyingPowerModel.GetMaximumLotsForDeltaBuyingPower(new GetMaximumLotsForDeltaBuyingPowerParameters(
@@ -822,87 +808,87 @@ namespace QuantConnect.Tests.Common.Securities
         // option strategy definition, initial position quantity, target buying power percent, expected quantity
         private static readonly TestCaseData[] OrderQuantityForTargetBuyingPowerTestCases = new[]
         {
-            // Signed maintenance margin for CoveredCall with quantity 10 is -205000
-            new TestCaseData(OptionStrategyDefinitions.CoveredCall, 10, -205000m * 11 / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.CoveredCall, 10, -205000m * 9 / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.CoveredCall, 10, 0m, -10).Explicit(),
-            // Signed maintenance margin for CoveredCall with quantity -10 is 166000
-            new TestCaseData(OptionStrategyDefinitions.CoveredCall, -10, 166000m * 11 / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.CoveredCall, -10, 166000m * 9 / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.CoveredCall, -10, 0m, +10).Explicit(),
-            // Signed maintenance margin for CoveredPut with quantity 10 is -205000
-            new TestCaseData(OptionStrategyDefinitions.CoveredPut, 10, -205000m * 11 / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.CoveredPut, 10, -205000m * 9 / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.CoveredPut, 10, 0m, -10).Explicit(),
-            // Signed maintenance margin for CoveredPut with quantity -10 is 205000
-            new TestCaseData(OptionStrategyDefinitions.CoveredPut, -10, 205000m * 11 / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.CoveredPut, -10, 205000m * 9 / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.CoveredPut, -10, 0m, +10).Explicit(),
-            // Signed maintenance margin for BearCallSpread with quantity 10 is -10000
-            new TestCaseData(OptionStrategyDefinitions.BearCallSpread, 10, -10000m * 11 / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.BearCallSpread, 10, -10000m * 9 / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.BearCallSpread, 10, 0m, -10).Explicit(),
-            // Signed maintenance margin for BearCallSpread with quantity -10 is 0
-            // Signed maintenance margin for BearPutSpread with quantity 10 is 0
-            // Signed maintenance margin for BearPutSpread with quantity -10 is -10000
-            new TestCaseData(OptionStrategyDefinitions.BearPutSpread, -10, -10000m * 11 / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.BearPutSpread, -10, -10000m * 9 / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.BearPutSpread, -10, 0m, +10),
-            // Signed maintenance margin for BullCallSpread with quantity 10 is 0
-            // Signed maintenance margin for BullCallSpread with quantity -10 is 10000
-            new TestCaseData(OptionStrategyDefinitions.BullCallSpread, -10, 10000m * 11 / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.BullCallSpread, -10, 10000m * 9 / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.BullCallSpread, -10, 0m, +10),
-            // Signed maintenance margin for BullPutSpread with quantity 10 is -10000
-            new TestCaseData(OptionStrategyDefinitions.BullPutSpread, 10, -10000m * 11 / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.BullPutSpread, 10, -10000m * 9 / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.BullPutSpread, 10, 0m, -10).Explicit(),
-            // Signed maintenance margin for BullPutSpread with quantity -10 is 0
-            // Signed maintenance margin for Straddle with quantity 10 is 112020
+            // Maintenance margin for CoveredCall with quantity 10 is 205000
+            new TestCaseData(OptionStrategyDefinitions.CoveredCall, 10, 205000m * 11 / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.CoveredCall, 10, 205000m * 9 / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.CoveredCall, 10, 0m, -10),
+            // Maintenance margin for CoveredCall with quantity -10 is 166000
+            new TestCaseData(OptionStrategyDefinitions.CoveredCall, -10, 166000m * 11 / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.CoveredCall, -10, 166000m * 9 / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.CoveredCall, -10, 0m, -10),
+            // Maintenance margin for CoveredPut with quantity 10 is 205000
+            new TestCaseData(OptionStrategyDefinitions.CoveredPut, 10, 205000m * 11 / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.CoveredPut, 10, 205000m * 9 / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.CoveredPut, 10, 0m, -10),
+            // Maintenance margin for CoveredPut with quantity -10 is 205000
+            new TestCaseData(OptionStrategyDefinitions.CoveredPut, -10, 205000m * 11 / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.CoveredPut, -10, 205000m * 9 / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.CoveredPut, -10, 0m, -10),
+            // Maintenance margin for BearCallSpread with quantity 10 is 10000
+            new TestCaseData(OptionStrategyDefinitions.BearCallSpread, 10, 10000m * 11 / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.BearCallSpread, 10, 10000m * 9 / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.BearCallSpread, 10, 0m, -10),
+            // Maintenance margin for BearCallSpread with quantity -10 is 0
+            // Maintenance margin for BearPutSpread with quantity 10 is 0
+            // Maintenance margin for BearPutSpread with quantity -10 is 10000
+            new TestCaseData(OptionStrategyDefinitions.BearPutSpread, -10, 10000m * 11 / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.BearPutSpread, -10, 10000m * 9 / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.BearPutSpread, -10, 0m, -10),
+            // Maintenance margin for BullCallSpread with quantity 10 is 0
+            // Maintenance margin for BullCallSpread with quantity -10 is 10000
+            new TestCaseData(OptionStrategyDefinitions.BullCallSpread, -10, 10000m * 11 / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.BullCallSpread, -10, 10000m * 9 / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.BullCallSpread, -10, 0m, -10),
+            // Maintenance margin for BullPutSpread with quantity 10 is -10000
+            new TestCaseData(OptionStrategyDefinitions.BullPutSpread, 10, 10000m * 11 / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.BullPutSpread, 10, 10000m * 9 / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.BullPutSpread, 10, 0m, -10),
+            // Maintenance margin for BullPutSpread with quantity -10 is 0
+            // Maintenance margin for Straddle with quantity 10 is 112020
             new TestCaseData(OptionStrategyDefinitions.Straddle, 10, 112020m * 11 / 10, +1),
             new TestCaseData(OptionStrategyDefinitions.Straddle, 10, 112020m * 9 / 10, -1),
             new TestCaseData(OptionStrategyDefinitions.Straddle, 10, 0m, -10),
-            // Signed maintenance margin for Straddle with quantity -10 is -235020
-            new TestCaseData(OptionStrategyDefinitions.Straddle, -10, -235020m * 11 / 10, -1),
-            new TestCaseData(OptionStrategyDefinitions.Straddle, -10, -235020m * 9 / 10, +1),
-            new TestCaseData(OptionStrategyDefinitions.Straddle, -10, 0m, +10),
-            // Signed maintenance margin for Strangle with quantity 10 is 102020
+            // Maintenance margin for Straddle with quantity -10 is 235020
+            new TestCaseData(OptionStrategyDefinitions.Straddle, -10, 235020m * 11 / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.Straddle, -10, 235020m * 9 / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.Straddle, -10, 0m, -10),
+            // Maintenance margin for Strangle with quantity 10 is 102020
             new TestCaseData(OptionStrategyDefinitions.Strangle, 10, 102020m * 11 / 10, +1),
             new TestCaseData(OptionStrategyDefinitions.Strangle, 10, 102020m * 9 / 10, -1),
             new TestCaseData(OptionStrategyDefinitions.Strangle, 10, 0m, -10),
-            // Signed maintenance margin for Strangle with quantity -10 is -225020
-            new TestCaseData(OptionStrategyDefinitions.Strangle, -10, -225020m * 11 / 10, -1),
-            new TestCaseData(OptionStrategyDefinitions.Strangle, -10, -225020m * 9 / 10, +1),
-            new TestCaseData(OptionStrategyDefinitions.Strangle, -10, 0m, +10),
-            // Signed maintenance margin for ButterflyCall with quantity 10 is 0
-            // Signed maintenance margin for ButterflyCall with quantity -10 is -10000
-            new TestCaseData(OptionStrategyDefinitions.ButterflyCall, -10, -10000m * 11 / 10, -1),
-            new TestCaseData(OptionStrategyDefinitions.ButterflyCall, -10, -10000m * 9 / 10, +1),
-            new TestCaseData(OptionStrategyDefinitions.ButterflyCall, -10, 0m, +10),
-            // Signed maintenance margin for ShortButterflyCall with quantity 10 is -10000
-            new TestCaseData(OptionStrategyDefinitions.ShortButterflyCall, 10, -10000m * 11 / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.ShortButterflyCall, 10, -10000m * 9 / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.ShortButterflyCall, 10, 0m, -10).Explicit(),
-            // Signed maintenance margin for ShortButterflyCall with quantity -10 is 0
-            // Signed maintenance margin for ButterflyPut with quantity 10 is 0
-            // Signed maintenance margin for ButterflyPut with quantity -10 is -10000
-            new TestCaseData(OptionStrategyDefinitions.ButterflyPut, -10, -10000m * 11 / 10, -1),
-            new TestCaseData(OptionStrategyDefinitions.ButterflyPut, -10, -10000m * 9 / 10, +1),
-            new TestCaseData(OptionStrategyDefinitions.ButterflyPut, -10, 0m, +10),
-            // Signed maintenance margin for ShortButterflyPut with quantity 10 is -10000
-            new TestCaseData(OptionStrategyDefinitions.ShortButterflyPut, 10, -10000m * 11 / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.ShortButterflyPut, 10, -10000m * 9 / 10, -1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.ShortButterflyPut, 10, 0m, -10).Explicit(),
-            // Signed maintenance margin for ShortButterflyPut with quantity -10 is 0
-            // Signed maintenance margin for CallCalendarSpread with quantity 10 is 0
-            // Signed maintenance margin for CallCalendarSpread with quantity -10 is 0
-            // Signed maintenance margin for PutCalendarSpread with quantity 10 is 0
-            // Signed maintenance margin for PutCalendarSpread with quantity -10 is 0
-            // Signed maintenance margin for IronCondor with quantity 10 is 10000
-            new TestCaseData(OptionStrategyDefinitions.IronCondor, 10, 10000m * 11 / 10, +1).Explicit(),
-            new TestCaseData(OptionStrategyDefinitions.IronCondor, 10, 10000m * 9 / 10, -1).Explicit(),
+            // Maintenance margin for Strangle with quantity -10 is 225020
+            new TestCaseData(OptionStrategyDefinitions.Strangle, -10, 225020m * 11 / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.Strangle, -10, 225020m * 9 / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.Strangle, -10, 0m, -10),
+            // Maintenance margin for ButterflyCall with quantity 10 is 0
+            // Maintenance margin for ButterflyCall with quantity -10 is 10000
+            new TestCaseData(OptionStrategyDefinitions.ButterflyCall, -10, 10000m * 11 / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.ButterflyCall, -10, 10000m * 9 / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.ButterflyCall, -10, 0m, -10),
+            // Maintenance margin for ShortButterflyCall with quantity 10 is 10000
+            new TestCaseData(OptionStrategyDefinitions.ShortButterflyCall, 10, 10000m * 11 / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.ShortButterflyCall, 10, 10000m * 9 / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.ShortButterflyCall, 10, 0m, -10),
+            // Maintenance margin for ShortButterflyCall with quantity -10 is 0
+            // Maintenance margin for ButterflyPut with quantity 10 is 0
+            // Maintenance margin for ButterflyPut with quantity -10 is 10000
+            new TestCaseData(OptionStrategyDefinitions.ButterflyPut, -10, 10000m * 11 / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.ButterflyPut, -10, 10000m * 9 / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.ButterflyPut, -10, 0m, -10),
+            // Maintenance margin for ShortButterflyPut with quantity 10 is 10000
+            new TestCaseData(OptionStrategyDefinitions.ShortButterflyPut, 10, 10000m * 11 / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.ShortButterflyPut, 10, 10000m * 9 / 10, -1),
+            new TestCaseData(OptionStrategyDefinitions.ShortButterflyPut, 10, 0m, -10),
+            // Maintenance margin for ShortButterflyPut with quantity -10 is 0
+            // Maintenance margin for CallCalendarSpread with quantity 10 is 0
+            // Maintenance margin for CallCalendarSpread with quantity -10 is 0
+            // Maintenance margin for PutCalendarSpread with quantity 10 is 0
+            // Maintenance margin for PutCalendarSpread with quantity -10 is 0
+            // Maintenance margin for IronCondor with quantity 10 is 10000
+            new TestCaseData(OptionStrategyDefinitions.IronCondor, 10, 10000m * 11 / 10, +1),
+            new TestCaseData(OptionStrategyDefinitions.IronCondor, 10, 10000m * 9 / 10, -1),
             new TestCaseData(OptionStrategyDefinitions.IronCondor, 10, 0m, -10),
-            // Signed maintenance margin for IronCondor with quantity -10 is 0
+            // Maintenance margin for IronCondor with quantity -10 is 0
         };
 
         [TestCaseSource(nameof(OrderQuantityForTargetBuyingPowerTestCases))]
