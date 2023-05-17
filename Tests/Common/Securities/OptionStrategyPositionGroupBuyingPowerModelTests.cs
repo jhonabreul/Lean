@@ -449,7 +449,7 @@ namespace QuantConnect.Tests.Common.Securities
             var usedMargin = _portfolio.TotalMarginUsed;
             var marginPerNakedShortUnit = usedMargin / absQuantity;
 
-            var longUnitGroup = positionGroup.Key.CreateUnitGroup();
+            var longUnitGroup = positionGroup.CreateUnitGroup();
             var marginPerLongUnit = longUnitGroup.BuyingPowerModel.GetInitialMarginRequirement(
                 new PositionGroupInitialMarginParameters(_portfolio, longUnitGroup)).Value;
 
@@ -512,7 +512,7 @@ namespace QuantConnect.Tests.Common.Securities
 
             var buyingPowerModel = positionGroup.BuyingPowerModel as PositionGroupBuyingPowerModel;
 
-            var unitGroup = PositionGroupBuyingPowerModel.CreatePositionGroupWithQuantity(positionGroup, 1);
+            var unitGroup = positionGroup.CreateUnitGroup();
             var unitMargin = Math.Abs(buyingPowerModel.GetInitialMarginRequirement(_portfolio, unitGroup));
 
             var targetFinalMargin = Math.Abs(finalPositionQuantity * unitMargin);
