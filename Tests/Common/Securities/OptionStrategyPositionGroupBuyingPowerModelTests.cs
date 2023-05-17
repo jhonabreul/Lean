@@ -415,7 +415,7 @@ namespace QuantConnect.Tests.Common.Securities
             var positionGroup = _portfolio.Positions.CreatePositionGroup(orders);
 
             var parameters = new HasSufficientPositionGroupBuyingPowerForOrderParameters(_portfolio, positionGroup, orders);
-            var availableBuyingPower = buyingPowerModel.GetPositionGroupBuyingPower(parameters.Portfolio, parameters.PositionGroup, orders.First().GroupOrderManager.Direction);
+            var availableBuyingPower = buyingPowerModel.GetPositionGroupBuyingPower(parameters.Portfolio, parameters.PositionGroup);
             var deltaBuyingPowerArgs = new ReservedBuyingPowerImpactParameters(parameters.Portfolio, parameters.PositionGroup, parameters.Orders);
             var deltaBuyingPower = buyingPowerModel.GetReservedBuyingPowerImpact(deltaBuyingPowerArgs).Delta;
 
@@ -1045,17 +1045,8 @@ namespace QuantConnect.Tests.Common.Securities
                     position.Quantity / initialPositionQuantity * newGroupQuantity, position.UnitQuantity)))).Single();
 
             var finalQuantity = initialPositionQuantity + newGroupQuantity;
-            OrderDirection direction;
-            if (Math.Abs(finalQuantity) < Math.Abs(initialPositionQuantity))
-            {
-                direction = initialPositionGroup.GetPositionSide() == PositionSide.Long ? OrderDirection.Sell : OrderDirection.Buy;
-            }
-            else
-            {
-                direction = initialPositionGroup.GetPositionSide() == PositionSide.Long ? OrderDirection.Buy : OrderDirection.Sell;
-            }
             var buyingPower = positionGroup.BuyingPowerModel.GetPositionGroupBuyingPower(new PositionGroupBuyingPowerParameters(_portfolio,
-                positionGroup, direction));
+                positionGroup));
 
             var initialUsedMargin = _portfolio.TotalMarginUsed;
             var initialPositionInitialMargin = initialPositionGroup.BuyingPowerModel.GetInitialMarginRequirement(
