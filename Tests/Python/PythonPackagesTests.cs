@@ -1232,13 +1232,14 @@ def RunTest():
         {
             AssertCode(
                 @"
+import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from interpret.glassbox import ExplainableBoostingClassifier
 
 def RunTest():
     df = pd.read_csv(
-        ""https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data"",
+        os.getcwd() + '/TestData/adult.data',
         header=None)
     df.columns = [
         ""Age"", ""WorkClass"", ""fnlwgt"", ""Education"", ""EducationNum"",
