@@ -35,6 +35,7 @@ namespace QuantConnect.Securities
         private readonly ISecurityInitializerProvider _securityInitializerProvider;
         private readonly SecurityCacheProvider _cacheProvider;
         private readonly IPrimaryExchangeProvider _primaryExchangeProvider;
+        private readonly SecurityManager _securityManager;
         private bool _isLiveMode;
 
         /// <summary>
@@ -55,6 +56,22 @@ namespace QuantConnect.Securities
             _securityInitializerProvider = securityInitializerProvider;
             _cacheProvider = cacheProvider;
             _primaryExchangeProvider = primaryExchangeProvider;
+        }
+
+        /// <summary>
+        /// Creates a new instance of the SecurityService class
+        /// </summary>
+        public SecurityService(CashBook cashBook,
+            MarketHoursDatabase marketHoursDatabase,
+            SymbolPropertiesDatabase symbolPropertiesDatabase,
+            ISecurityInitializerProvider securityInitializerProvider,
+            IRegisteredSecurityDataTypesProvider registeredTypes,
+            SecurityCacheProvider cacheProvider,
+            SecurityManager securityManager,
+            IPrimaryExchangeProvider primaryExchangeProvider = null)
+            : this(cashBook, marketHoursDatabase, symbolPropertiesDatabase, securityInitializerProvider, registeredTypes, cacheProvider,                        primaryExchangeProvider)
+        {
+            _securityManager = securityManager;
         }
 
         /// <summary>
@@ -195,6 +212,21 @@ namespace QuantConnect.Securities
 
             // invoke the security initializer
             _securityInitializerProvider.SecurityInitializer.Initialize(security);
+
+            // Set option/future contracts models from the canonical/future
+            // only when user didn't override the security initializer
+            if (_securityInitializerProvider.SecurityInitializer.GetType() == typeof(BrokerageModelSecurityInitializer) &&
+                (security.Type == SecurityType.Option || security.Type == SecurityType.IndexOption) && !security.Symbol.IsCanonical() && security.Symbol.Canonical != null)
+            {
+                var canonical = _securityManager[security.Symbol.Canonical];
+                security.SetFillModel(canonical.FillModel);
+                security.SetFeeModel(canonical.FeeModel);
+                security.SetBuyingPowerModel(canonical.BuyingPowerModel);
+                security.SetMarginInterestRateModel(canonical.MarginInterestRateModel);
+                security.SetSlippageModel(canonical.SlippageModel);
+                security.SetVolatilityModel(canonical.VolatilityModel);
+                security.SettlementModel = canonical.SettlementModel;
+            }
 
             // if leverage was specified then apply to security after the initializer has run, parameters of this
             // method take precedence over the intializer
