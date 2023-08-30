@@ -27,6 +27,7 @@ namespace QuantConnect.Securities
     {
         private readonly IBrokerageModel _brokerageModel;
         private readonly ISecuritySeeder _securitySeeder;
+        private readonly SecurityManager _securityManager;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="BrokerageModelSecurityInitializer"/> class
@@ -43,10 +44,13 @@ namespace QuantConnect.Securities
         /// </summary>
         /// <param name="brokerageModel">The brokerage model used to initialize the security models</param>
         /// <param name="securitySeeder">An <see cref="ISecuritySeeder"/> used to seed the initial price of the security</param>
-        public BrokerageModelSecurityInitializer(IBrokerageModel brokerageModel, ISecuritySeeder securitySeeder)
+        /// <param name="securityManager">The security manager used to initialize the security models</param>
+        public BrokerageModelSecurityInitializer(IBrokerageModel brokerageModel, ISecuritySeeder securitySeeder,
+            SecurityManager securityManager = null)
         {
             _brokerageModel = brokerageModel;
             _securitySeeder = securitySeeder;
+            _securityManager = securityManager;
         }
 
         /// <summary>
@@ -56,12 +60,28 @@ namespace QuantConnect.Securities
         public virtual void Initialize(Security security)
         {
             // Sets the security models
-            security.FillModel = _brokerageModel.GetFillModel(security);
-            security.FeeModel = _brokerageModel.GetFeeModel(security);
-            security.SlippageModel = _brokerageModel.GetSlippageModel(security);
-            security.SettlementModel = _brokerageModel.GetSettlementModel(security);
-            security.BuyingPowerModel = _brokerageModel.GetBuyingPowerModel(security);
-            security.MarginInterestRateModel = _brokerageModel.GetMarginInterestRateModel(security);
+            if (_securityManager != null && security.Symbol.HasCanonical())
+            {
+                var canonicalSecurity = _securityManager[security.Symbol.Canonical];
+
+                security.FillModel = canonicalSecurity.FillModel;
+                security.FeeModel = canonicalSecurity.FeeModel;
+                security.SlippageModel = canonicalSecurity.SlippageModel;
+                security.SettlementModel = canonicalSecurity.SettlementModel;
+                security.BuyingPowerModel = canonicalSecurity.BuyingPowerModel;
+                security.MarginInterestRateModel = canonicalSecurity.MarginInterestRateModel;
+                security.VolatilityModel = canonicalSecurity.VolatilityModel;
+            }
+            else
+            {
+                security.FillModel = _brokerageModel.GetFillModel(security);
+                security.FeeModel = _brokerageModel.GetFeeModel(security);
+                security.SlippageModel = _brokerageModel.GetSlippageModel(security);
+                security.SettlementModel = _brokerageModel.GetSettlementModel(security);
+                security.BuyingPowerModel = _brokerageModel.GetBuyingPowerModel(security);
+                security.MarginInterestRateModel = _brokerageModel.GetMarginInterestRateModel(security);
+            }
+
             // Sets the leverage after the buying power model. Otherwise we would set the leverage of the default model.
             security.SetLeverage(_brokerageModel.GetLeverage(security));
             security.SetShortableProvider(_brokerageModel.GetShortableProvider());
