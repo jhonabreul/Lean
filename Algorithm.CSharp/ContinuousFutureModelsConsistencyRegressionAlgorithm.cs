@@ -13,32 +13,62 @@
  * limitations under the License.
 */
 
-using QuantConnect.Securities;
-
+using System;
 using System.Collections.Generic;
+
+using QuantConnect.Data;
+using QuantConnect.Securities;
+using QuantConnect.Securities.Future;
 
 namespace QuantConnect.Algorithm.CSharp
 {
     /// <summary>
     /// </summary>
-    public class IndexOptionModelsConsistencyRegressionAlgorithm : OptionModelsConsistencyRegressionAlgorithm
+    public class ContinuousFutureModelsConsistencyRegressionAlgorithm : OptionModelsConsistencyRegressionAlgorithm
     {
+        private Future _continuousContract;
+        private bool _futureMapped;
+
         protected override Security InitializeAlgorithm()
         {
-            SetStartDate(2021, 1, 4);
-            SetEndDate(2021, 1, 5);
+            SetStartDate(2013, 7, 1);
+            SetEndDate(2014, 1, 1);
 
-            var index = AddIndex("SPX", Resolution.Minute);
-            var option = AddIndexOption(index.Symbol, "SPX", Resolution.Minute);
-            option.SetFilter((x) => x.Strikes(-5, 5).Expiration(0, 360));
+            _continuousContract = AddFuture(Futures.Indices.SP500EMini,
+                dataNormalizationMode: DataNormalizationMode.BackwardsPanamaCanal,
+                dataMappingMode: DataMappingMode.OpenInterest,
+                contractDepthOffset: 1
+            );
 
-            return option;
+            return _continuousContract;
+        }
+
+        public override void OnData(Slice data)
+        {
+            foreach (var changedEvent in data.SymbolChangedEvents.Values)
+            {
+                if (changedEvent.Symbol == _continuousContract.Symbol)
+                {
+                    _futureMapped = true;
+                    CheckModels(Securities[_continuousContract.Mapped]);
+                }
+            }
+        }
+
+        public override void OnEndOfAlgorithm()
+        {
+            base.OnEndOfAlgorithm();
+
+            if (!_futureMapped)
+            {
+                throw new Exception("No mappings were found for the continuous future.");
+            }
         }
 
         /// <summary>
         /// This is used by the regression test system to indicate if the open source Lean repository has the required data to run this algorithm.
         /// </summary>
-        public override bool CanRunLocally => true;
+        public override bool CanRunLocally { get; } = true;
 
         /// <summary>
         /// This is used by the regression test system to indicate which languages this algorithm is written in.
@@ -48,7 +78,7 @@ namespace QuantConnect.Algorithm.CSharp
         /// <summary>
         /// Data Points count of all timeslices of algorithm
         /// </summary>
-        public override long DataPoints => 19224;
+        public override long DataPoints => 703062;
 
         /// <summary>
         /// Data Points count of the algorithm history

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -43,6 +43,26 @@ namespace QuantConnect.Python
             using (Py.GIL())
             {
                 _model.Initialize(security);
+            }
+        }
+
+        /// <summary>
+        /// Sets the security manager to be used by the initializer
+        /// </summary>
+        /// <param name="securityManager">The security manager used to initialize the security models</param>
+        public void SetSecurityManager(SecurityManager securityManager)
+        {
+            using (Py.GIL())
+            {
+                try
+                {
+                    var initializer = _model.As<BrokerageModelSecurityInitializer>();
+                    initializer.SetSecurityManager(securityManager);
+                }
+                catch (PythonException e)
+                {
+                    // Cast failed, ignore
+                }
             }
         }
     }

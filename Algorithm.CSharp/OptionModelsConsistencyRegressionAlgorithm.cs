@@ -22,7 +22,6 @@ using QuantConnect.Orders.Fees;
 using QuantConnect.Securities;
 using QuantConnect.Orders.Slippage;
 using QuantConnect.Securities.Volatility;
-using QuantConnect.Securities.Option;
 
 namespace QuantConnect.Algorithm.CSharp
 {
@@ -30,74 +29,26 @@ namespace QuantConnect.Algorithm.CSharp
     /// </summary>
     public class OptionModelsConsistencyRegressionAlgorithm : QCAlgorithm, IRegressionAlgorithmDefinition
     {
-        protected Symbol _optionSymbol;
+        private Symbol _symbol;
 
-        private bool _modelsChecked;
+        protected bool ModelsChecked { get; set; }
 
         public override void Initialize()
         {
-            var option = InitializeAlgorithm();
-            _optionSymbol = option.Symbol;
-            SetModels(option);
+            var security = InitializeAlgorithm();
+            _symbol = security.Symbol;
+
+            security.SetFillModel(new CustomFillModel());
+            security.SetFeeModel(new CustomFeeModel());
+            security.SetBuyingPowerModel(new CustomBuyingPowerModel());
+            security.SetSlippageModel(new CustomSlippageModel());
+            security.SetVolatilityModel(new CustomVolatilityModel());
+            security.SettlementModel = new CustomSettlementModel();
+
+            SetBenchmark(x => 0);
         }
 
-        public override void OnData(Slice slice)
-        {
-            if (slice.OptionChains.TryGetValue(_optionSymbol, out var chain))
-            {
-                foreach (var contract in chain)
-                {
-                    var optionContract = Securities[contract.Symbol];
-
-                    // Check that contracts fill model is our custom fill model
-                    if (optionContract.FillModel.GetType() != typeof(CustomFillModel))
-                    {
-                        throw new Exception($@"Contract {optionContract.Symbol} has fill model {optionContract.FillModel.GetType()
-                            } instead of CustomFillModel");
-                    }
-
-                    // Check that contracts fee model is our custom fee model
-                    if (optionContract.FeeModel.GetType() != typeof(CustomFeeModel))
-                    {
-                        throw new Exception($@"Contract {optionContract.Symbol} has fee model {optionContract.FeeModel.GetType()
-                            } instead of CustomFeeModel");
-                    }
-
-                    // Check that contracts buying power model is our custom buying power model
-                    if (optionContract.BuyingPowerModel.GetType() != typeof(CustomBuyingPowerModel))
-                    {
-                        throw new Exception($@"Contract {optionContract.Symbol} has buying power model {optionContract.BuyingPowerModel.GetType()
-                            } instead of CustomBuyingPowerModel");
-                    }
-
-                    // Check that contracts slippage model is our custom slippage model
-                    if (optionContract.SlippageModel.GetType() != typeof(CustomSlippageModel))
-                    {
-                        throw new Exception($@"Contract {optionContract.Symbol} has slippage model {optionContract.SlippageModel.GetType()
-                            } instead of CustomSlippageModel");
-                    }
-
-                    // Check that contracts volatility model is our custom volatility model
-                    if (optionContract.VolatilityModel.GetType() != typeof(CustomVolatilityModel))
-                    {
-                        throw new Exception($@"Contract {optionContract.Symbol} has volatility model {optionContract.VolatilityModel.GetType()
-                            } instead of CustomVolatilityModel");
-                    }
-
-                    _modelsChecked = true;
-                }
-            }
-        }
-
-        public override void OnEndOfAlgorithm()
-        {
-            if (!_modelsChecked)
-            {
-                throw new Exception("Option contracts models were not checked.");
-            }
-        }
-
-        protected virtual Option InitializeAlgorithm()
+        protected virtual Security InitializeAlgorithm()
         {
             SetStartDate(2015, 12, 24);
             SetEndDate(2015, 12, 24);
@@ -106,19 +57,68 @@ namespace QuantConnect.Algorithm.CSharp
             var option = AddOption(equity.Symbol);
             option.SetFilter(u => u.Strikes(-2, +2).Expiration(0, 180));
 
-            SetBenchmark(x => 0);
-
             return option;
         }
 
-        protected virtual void SetModels(Option option)
+        public override void OnData(Slice slice)
         {
-            option.SetFillModel(new CustomFillModel());
-            option.SetFeeModel(new CustomFeeModel());
-            option.SetBuyingPowerModel(new CustomBuyingPowerModel());
-            option.SetSlippageModel(new CustomSlippageModel());
-            option.SetVolatilityModel(new CustomVolatilityModel());
-            option.SettlementModel = new CustomSettlementModel();
+            if (slice.OptionChains.TryGetValue(_symbol, out var chain))
+            {
+                foreach (var contract in chain)
+                {
+                    var optionContract = Securities[contract.Symbol];
+                    CheckModels(optionContract);
+                }
+            }
+        }
+
+        protected void CheckModels(Security security)
+        {
+            // Check that contracts fill model is our custom fill model
+            if (security.FillModel.GetType() != typeof(CustomFillModel))
+            {
+                throw new Exception($@"Contract {security.Symbol} has fill model {security.FillModel.GetType()} instead of CustomFillModel");
+            }
+
+            // Check that contracts fee model is our custom fee model
+            if (security.FeeModel.GetType() != typeof(CustomFeeModel))
+            {
+                throw new Exception($@"Contract {security.Symbol} has fee model {security.FeeModel.GetType()} instead of CustomFeeModel");
+            }
+
+            // Check that contracts buying power model is our custom buying power model
+            if (security.BuyingPowerModel.GetType() != typeof(CustomBuyingPowerModel))
+            {
+                throw new Exception($@"Contract {security.Symbol} has buying power model {security.BuyingPowerModel.GetType()} instead of CustomBuyingPowerModel");
+            }
+
+            // Check that contracts slippage model is our custom slippage model
+            if (security.SlippageModel.GetType() != typeof(CustomSlippageModel))
+            {
+                throw new Exception($@"Contract {security.Symbol} has slippage model {security.SlippageModel.GetType()} instead of CustomSlippageModel");
+            }
+
+            // Check that contracts volatility model is our custom volatility model
+            if (security.VolatilityModel.GetType() != typeof(CustomVolatilityModel))
+            {
+                throw new Exception($@"Contract {security.Symbol} has volatility model {security.VolatilityModel.GetType()} instead of CustomVolatilityModel");
+            }
+
+            // Check that contracts settlement model is our custom settlement model
+            if (security.SettlementModel.GetType() != typeof(CustomSettlementModel))
+            {
+                throw new Exception($@"Contract {security.Symbol} has settlement model {security.SettlementModel.GetType()} instead of CustomSettlementModel");
+            }
+
+            ModelsChecked = true;
+        }
+
+        public override void OnEndOfAlgorithm()
+        {
+            if (!ModelsChecked)
+            {
+                throw new Exception("Models were not checked.");
+            }
         }
 
         public class CustomFillModel : FillModel

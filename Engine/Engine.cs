@@ -32,6 +32,7 @@ using QuantConnect.Lean.Engine.Setup;
 using QuantConnect.Logging;
 using QuantConnect.Orders;
 using QuantConnect.Packets;
+using QuantConnect.Python;
 using QuantConnect.Securities;
 using QuantConnect.Util;
 using static QuantConnect.StringExtensions;
@@ -247,6 +248,15 @@ namespace QuantConnect.Lean.Engine
                         Log.Error("Engine.Run(): " + errorMessage);
                         AlgorithmHandlers.Results.RuntimeError(errorMessage, stackTrace);
                         SystemHandlers.Api.SetAlgorithmStatus(job.AlgorithmId, AlgorithmStatus.RuntimeError, errorMessage);
+                    }
+
+                    if (algorithm.SecurityInitializer is BrokerageModelSecurityInitializer securityInitializer)
+                    {
+                        securityInitializer.SetSecurityManager(algorithm.Securities);
+                    }
+                    else if (algorithm.SecurityInitializer is SecurityInitializerPythonWrapper pythonSecurityInitializer)
+                    {
+                        pythonSecurityInitializer.SetSecurityManager(algorithm.Securities);
                     }
                 }
                 catch (Exception err)

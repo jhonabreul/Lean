@@ -27,7 +27,7 @@ namespace QuantConnect.Securities
     {
         private readonly IBrokerageModel _brokerageModel;
         private readonly ISecuritySeeder _securitySeeder;
-        private readonly SecurityManager _securityManager;
+        private SecurityManager _securityManager;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="BrokerageModelSecurityInitializer"/> class
@@ -44,13 +44,10 @@ namespace QuantConnect.Securities
         /// </summary>
         /// <param name="brokerageModel">The brokerage model used to initialize the security models</param>
         /// <param name="securitySeeder">An <see cref="ISecuritySeeder"/> used to seed the initial price of the security</param>
-        /// <param name="securityManager">The security manager used to initialize the security models</param>
-        public BrokerageModelSecurityInitializer(IBrokerageModel brokerageModel, ISecuritySeeder securitySeeder,
-            SecurityManager securityManager = null)
+        public BrokerageModelSecurityInitializer(IBrokerageModel brokerageModel, ISecuritySeeder securitySeeder)
         {
             _brokerageModel = brokerageModel;
             _securitySeeder = securitySeeder;
-            _securityManager = securityManager;
         }
 
         /// <summary>
@@ -87,6 +84,15 @@ namespace QuantConnect.Securities
             security.SetShortableProvider(_brokerageModel.GetShortableProvider());
 
             _securitySeeder.SeedSecurity(security);
+        }
+
+        /// <summary>
+        /// Sets the security manager to be used by the initializer
+        /// </summary>
+        /// <param name="securityManager">The security manager used to initialize the security models</param>
+        public void SetSecurityManager(SecurityManager securityManager)
+        {
+            _securityManager = securityManager;
         }
     }
 }
