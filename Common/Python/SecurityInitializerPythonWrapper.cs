@@ -54,14 +54,9 @@ namespace QuantConnect.Python
         {
             using (Py.GIL())
             {
-                try
+                if ((_model as PyObject).HasAttr("SetSecurityManager"))
                 {
-                    var initializer = _model.As<BrokerageModelSecurityInitializer>();
-                    initializer.SetSecurityManager(securityManager);
-                }
-                catch (PythonException e)
-                {
-                    // Cast failed, ignore
+                    _model.SetSecurityManager(securityManager);
                 }
             }
         }
