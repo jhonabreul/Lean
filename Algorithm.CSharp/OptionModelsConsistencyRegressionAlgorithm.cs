@@ -13,6 +13,7 @@
  * limitations under the License.
 */
 
+using System.Linq;
 using QuantConnect.Data;
 using QuantConnect.Interfaces;
 using System.Collections.Generic;
@@ -30,6 +31,8 @@ namespace QuantConnect.Algorithm.CSharp
     /// </summary>
     public class OptionModelsConsistencyRegressionAlgorithm : QCAlgorithm, IRegressionAlgorithmDefinition
     {
+        private Symbol _equitySymbol;
+
         private Symbol _symbol;
 
         protected bool ModelsChecked { get; set; }
@@ -55,10 +58,23 @@ namespace QuantConnect.Algorithm.CSharp
             SetEndDate(2015, 12, 24);
 
             var equity = AddEquity("GOOG", leverage: 4);
+            _equitySymbol = equity.Symbol;
             var option = AddOption(equity.Symbol);
             option.SetFilter(u => u.Strikes(-2, +2).Expiration(0, 180));
 
             return option;
+        }
+
+        public override void OnWarmupFinished()
+        {
+            if (_equitySymbol != null)
+            {
+                // Make sure models are passed down also when adding contracts manually
+                var contractSymbol = OptionChainProvider.GetOptionContractList(_equitySymbol, Time).First();
+                var contract = AddOptionContract(contractSymbol);
+                CheckModels(contract);
+                RemoveOptionContract(contract.Symbol);
+            }
         }
 
         public override void OnData(Slice slice)
@@ -162,7 +178,7 @@ namespace QuantConnect.Algorithm.CSharp
         /// <summary>
         /// Data Points count of all timeslices of algorithm
         /// </summary>
-        public virtual long DataPoints => 475777;
+        public virtual long DataPoints => 475778;
 
         /// <summary>
         /// Data Points count of the algorithm history

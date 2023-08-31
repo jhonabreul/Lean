@@ -19,6 +19,8 @@ from AlgorithmImports import *
 class OptionModelsConsistencyRegressionAlgorithm(QCAlgorithm):
 
     def Initialize(self) -> None:
+        self.equity_symbol = None
+
         security = self.InitializeAlgorithm()
         self.symbol = security.Symbol
 
@@ -42,10 +44,19 @@ class OptionModelsConsistencyRegressionAlgorithm(QCAlgorithm):
         self.SetEndDate(2015, 12, 24)
 
         equity = self.AddEquity("GOOG", leverage=4)
+        self.equity_symbol = equity.Symbol
         option = self.AddOption(equity.Symbol)
         option.SetFilter(lambda u: u.Strikes(-2, +2).Expiration(0, 180))
 
         return option
+
+    def OnWarmupFinished(self) -> None:
+        if self.equity_symbol is not None:
+            # Make sure models are passed down also when adding contracts manually
+            contract_symbol = list(self.OptionChainProvider.GetOptionContractList(self.equity_symbol, self.Time))[0]
+            contract = self.AddOptionContract(contract_symbol)
+            self.CheckModels(contract)
+            self.RemoveOptionContract(contract.Symbol)
 
     def OnData(self, slice) -> None:
         chain = slice.OptionChains.get(self.symbol)
