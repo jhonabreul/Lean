@@ -42,12 +42,7 @@ namespace QuantConnect.Algorithm.CSharp
             var security = InitializeAlgorithm();
             _symbol = security.Symbol;
 
-            security.SetFillModel(new CustomFillModel());
-            security.SetFeeModel(new CustomFeeModel());
-            security.SetBuyingPowerModel(new CustomBuyingPowerModel());
-            security.SetSlippageModel(new CustomSlippageModel());
-            security.SetVolatilityModel(new CustomVolatilityModel());
-            security.SettlementModel = new CustomSettlementModel();
+            SetModels(security);
 
             SetBenchmark(x => 0);
         }
@@ -73,6 +68,8 @@ namespace QuantConnect.Algorithm.CSharp
                 var contractSymbol = OptionChainProvider.GetOptionContractList(_equitySymbol, Time).First();
                 var contract = AddOptionContract(contractSymbol);
                 CheckModels(contract);
+                // Reset this flag in order to assert models are checked in OnData
+                ModelsChecked = false;
                 RemoveOptionContract(contract.Symbol);
             }
         }
@@ -87,6 +84,16 @@ namespace QuantConnect.Algorithm.CSharp
                     CheckModels(optionContract);
                 }
             }
+        }
+
+        protected void SetModels(Security security)
+        {
+            security.SetFillModel(new CustomFillModel());
+            security.SetFeeModel(new CustomFeeModel());
+            security.SetBuyingPowerModel(new CustomBuyingPowerModel());
+            security.SetSlippageModel(new CustomSlippageModel());
+            security.SetVolatilityModel(new CustomVolatilityModel());
+            security.SettlementModel = new CustomSettlementModel();
         }
 
         protected void CheckModels(Security security)

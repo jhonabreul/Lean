@@ -57,10 +57,10 @@ namespace QuantConnect.Securities
         public virtual void Initialize(Security security)
         {
             // Sets the security models
-            if (_securityManager != null && security.Symbol.HasCanonical())
+            if (_securityManager != null &&
+                security.Symbol.HasCanonical() &&
+                _securityManager.TryGetValue(security.Symbol.Canonical, out var canonicalSecurity))
             {
-                var canonicalSecurity = _securityManager[security.Symbol.Canonical];
-
                 security.FillModel = canonicalSecurity.FillModel;
                 security.FeeModel = canonicalSecurity.FeeModel;
                 security.SlippageModel = canonicalSecurity.SlippageModel;

@@ -50,6 +50,7 @@ using Index = QuantConnect.Securities.Index.Index;
 using QuantConnect.Securities.CryptoFuture;
 using QuantConnect.Algorithm.Framework.Alphas.Analysis;
 using QuantConnect.Algorithm.Framework.Portfolio.SignalExports;
+using QuantConnect.Python;
 
 namespace QuantConnect.Algorithm
 {
@@ -193,7 +194,9 @@ namespace QuantConnect.Algorithm
             // initialize the trade builder
             SetTradeBuilder(new TradeBuilder(FillGroupingMethod.FillToFill, FillMatchingMethod.FIFO));
 
-            SecurityInitializer = new BrokerageModelSecurityInitializer(BrokerageModel, SecuritySeeder.Null);
+            // Purposefully using the internal set method vs public one so we don't trigger user-set switch but
+            // still get the default behavior and validations.
+            SetSecurityInitializerInternal(new BrokerageModelSecurityInitializer(BrokerageModel, SecuritySeeder.Null));
 
             CandlestickPatterns = new CandlestickPatterns(this);
 
@@ -863,7 +866,26 @@ namespace QuantConnect.Algorithm
 
             // this flag will prevent calls to SetBrokerageModel from overwriting this initializer
             _userSetSecurityInitializer = true;
+            SetSecurityInitializerInternal(securityInitializer);
+        }
+
+        /// <summary>
+        /// Sets the security initializer, used to initialize/configure securities after creation.
+        /// The initializer will be applied to all universes and manually added securities.
+        /// </summary>
+        /// <param name="securityInitializer">The security initializer</param>
+        private void SetSecurityInitializerInternal(ISecurityInitializer securityInitializer)
+        {
             SecurityInitializer = securityInitializer;
+
+            if (SecurityInitializer is BrokerageModelSecurityInitializer defaultSecurityInitializer)
+            {
+                defaultSecurityInitializer.SetSecurityManager(Securities);
+            }
+            else if (SecurityInitializer is SecurityInitializerPythonWrapper pythonSecurityInitializer)
+            {
+                pythonSecurityInitializer.SetSecurityManager(Securities);
+            }
         }
 
         /// <summary>
@@ -1242,8 +1264,8 @@ namespace QuantConnect.Algorithm
             BrokerageModel = model;
             if (!_userSetSecurityInitializer)
             {
-                // purposefully use the direct setter vs Set method so we don't flip the switch :/
-                SecurityInitializer = new BrokerageModelSecurityInitializer(model, SecuritySeeder.Null);
+                // purposefully using the internal set method vs public one so we don't flip the switch :/
+                SetSecurityInitializerInternal(new BrokerageModelSecurityInitializer(model, SecuritySeeder.Null));
 
                 // update models on securities added earlier (before SetBrokerageModel is called)
                 foreach (var kvp in Securities)

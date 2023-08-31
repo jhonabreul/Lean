@@ -19,16 +19,10 @@ from AlgorithmImports import *
 class OptionModelsConsistencyRegressionAlgorithm(QCAlgorithm):
 
     def Initialize(self) -> None:
-        self.equity_symbol = None
-
         security = self.InitializeAlgorithm()
         self.symbol = security.Symbol
 
-        security.SetFillModel(CustomFillModel())
-        security.SetFeeModel(CustomFeeModel())
-        security.SetBuyingPowerModel(CustomBuyingPowerModel())
-        security.SetSlippageModel(CustomSlippageModel())
-        security.SetVolatilityModel(CustomVolatilityModel())
+        self.SetModels(security)
 
         # Using a custom security initializer derived from BrokerageModelSecurityInitializer
         # to check that the models are correctly set in the security even when the
@@ -51,11 +45,13 @@ class OptionModelsConsistencyRegressionAlgorithm(QCAlgorithm):
         return option
 
     def OnWarmupFinished(self) -> None:
-        if self.equity_symbol is not None:
+        if hasattr(self, "equity_symbol") and self.equity_symbol is not None:
             # Make sure models are passed down also when adding contracts manually
             contract_symbol = list(self.OptionChainProvider.GetOptionContractList(self.equity_symbol, self.Time))[0]
             contract = self.AddOptionContract(contract_symbol)
             self.CheckModels(contract)
+            # Reset this flag in order to assert models are checked in OnData
+            self.models_checked = False;
             self.RemoveOptionContract(contract.Symbol)
 
     def OnData(self, slice) -> None:
@@ -64,6 +60,13 @@ class OptionModelsConsistencyRegressionAlgorithm(QCAlgorithm):
             for contract in chain:
                 optionContract = self.Securities[contract.Symbol]
                 self.CheckModels(optionContract)
+
+    def SetModels(self, security: Security) -> None:
+        security.SetFillModel(CustomFillModel())
+        security.SetFeeModel(CustomFeeModel())
+        security.SetBuyingPowerModel(CustomBuyingPowerModel())
+        security.SetSlippageModel(CustomSlippageModel())
+        security.SetVolatilityModel(CustomVolatilityModel())
 
     def CheckModels(self, security: Security) -> None:
         # Check that contracts fill model is our custom fill model
