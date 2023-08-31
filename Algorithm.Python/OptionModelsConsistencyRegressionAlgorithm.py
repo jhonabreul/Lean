@@ -14,6 +14,7 @@
 from AlgorithmImports import *
 
 ### <summary>
+### Regression algorithm asserting that models set to a canonical option are passed down to the option chain contracts
 ### </summary>
 class OptionModelsConsistencyRegressionAlgorithm(QCAlgorithm):
 

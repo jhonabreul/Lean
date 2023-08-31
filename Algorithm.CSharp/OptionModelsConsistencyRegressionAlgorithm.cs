@@ -26,6 +26,7 @@ using QuantConnect.Securities.Volatility;
 namespace QuantConnect.Algorithm.CSharp
 {
     /// <summary>
+    /// Regression algorithm asserting that models set to a canonical option are passed down to the option chain contracts
     /// </summary>
     public class OptionModelsConsistencyRegressionAlgorithm : QCAlgorithm, IRegressionAlgorithmDefinition
     {

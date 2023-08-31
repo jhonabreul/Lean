@@ -23,6 +23,7 @@ using QuantConnect.Securities.Future;
 namespace QuantConnect.Algorithm.CSharp
 {
     /// <summary>
+    /// Regression algorithm asserting that models set to a future are passed down to the mapped contracts
     /// </summary>
     public class ContinuousFutureModelsConsistencyRegressionAlgorithm : OptionModelsConsistencyRegressionAlgorithm
     {

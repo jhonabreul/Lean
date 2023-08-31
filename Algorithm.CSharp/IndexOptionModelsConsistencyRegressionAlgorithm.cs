@@ -20,6 +20,7 @@ using System.Collections.Generic;
 namespace QuantConnect.Algorithm.CSharp
 {
     /// <summary>
+    /// Regression algorithm asserting that models set to a canonical index option are passed down to the option chain contracts
     /// </summary>
     public class IndexOptionModelsConsistencyRegressionAlgorithm : OptionModelsConsistencyRegressionAlgorithm
     {
