@@ -807,11 +807,6 @@ namespace QuantConnect.Lean.Engine.Results
             State["OrderCount"] = Algorithm?.Transactions?.OrdersCount.ToStringInvariant() ?? "0";
             State["InsightCount"] = Algorithm?.Insights.TotalCount.ToStringInvariant() ?? "0";
 
-            if (Algorithm != null)
-            {
-                State["Name"] = Algorithm.Name;
-            }
-
             return State;
         }
 
