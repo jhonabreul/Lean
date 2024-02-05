@@ -98,17 +98,20 @@ namespace QuantConnect.Securities.CryptoFuture
             {
                 var otherCryptoFuture = portfolio.Securities[kvp.Key];
                 // check if we share the collateral
-                if (collateralCurrency == GetCollateralCash(otherCryptoFuture))
+                if (collateralCurrency.CurrencySymbol == GetCollateralCash(otherCryptoFuture).CurrencySymbol)
                 {
                     // we reduce the available collateral based on total usage of all other positions too
-                    result -= otherCryptoFuture.BuyingPowerModel.GetMaintenanceMargin(MaintenanceMarginParameters.ForCurrentHoldings(otherCryptoFuture));
+                    result -= otherCryptoFuture.BuyingPowerModel.GetInitialMarginRequirement(otherCryptoFuture, otherCryptoFuture.Holdings.Quantity);
                 }
             }
+
+            // remove the initial margin requirement for the current position
+            result -= this.GetInitialMarginRequirement(security, security.Holdings.Quantity);
 
             if (direction != OrderDirection.Hold)
             {
                 var holdings = security.Holdings;
-                //If the order is in the same direction as holdings, our remaining cash is our cash
+                //If the order is in the same direction as holdings, our remaining cash is our cash minus the initial margin required for the existing position
                 //In the opposite direction, our remaining cash is 2 x current value of assets + our cash
                 if (holdings.IsLong)
                 {
