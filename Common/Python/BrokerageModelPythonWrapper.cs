@@ -35,6 +35,8 @@ namespace QuantConnect.Python
     /// </summary>
     public class BrokerageModelPythonWrapper : BasePythonWrapper<IBrokerageModel>, IBrokerageModel
     {
+        private readonly dynamic _model;
+
         /// <summary>
         /// Constructor for initialising the <see cref="BrokerageModelPythonWrapper"/> class with wrapped <see cref="PyObject"/> object
         /// </summary>
@@ -42,6 +44,7 @@ namespace QuantConnect.Python
         public BrokerageModelPythonWrapper(PyObject model)
             : base(model)
         {
+            _model = model;
         }
 
         /// <summary>
@@ -77,6 +80,7 @@ namespace QuantConnect.Python
                 using (Py.GIL())
                 {
                     var markets = GetProperty<PyObject>(nameof(DefaultMarkets)) as dynamic;
+                    //var markets = _model.DefaultMarkets;
                     if ((markets as PyObject).TryConvert(out IReadOnlyDictionary<SecurityType, string> csharpDic))
                     {
                         return csharpDic;

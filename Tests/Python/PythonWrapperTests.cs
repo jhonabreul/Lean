@@ -19,6 +19,7 @@ using Python.Runtime;
 using QuantConnect.Python;
 using System.Collections.Generic;
 using QuantConnect.Statistics;
+using System.Linq;
 
 namespace QuantConnect.Tests.Python
 {
@@ -350,6 +351,20 @@ class PythonInvokeTestsModel(PythonWrapperTests.InvokeTests.InvokeTestsModel):
                 public int AddThreeNumbers(int a, int b, int c)
                 {
                     return a + b + c;
+                }
+            }
+
+            [Test]
+            public void TESTTTT()
+            {
+                var classes = AppDomain.CurrentDomain.GetAssemblies()
+                    .SelectMany(t => t.GetTypes())
+                    .Where(t => t != null && t.Name != null && t.Namespace != null && t.Namespace.StartsWith("QuantConnect", StringComparison.Ordinal) && t.Name.EndsWith("PythonWrapper", StringComparison.Ordinal))
+                    .ToArray();
+
+                foreach (var @class in classes)
+                {
+                    Console.WriteLine(@class.Name);
                 }
             }
         }

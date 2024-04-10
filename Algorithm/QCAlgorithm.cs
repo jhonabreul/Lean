@@ -62,6 +62,8 @@ namespace QuantConnect.Algorithm
     /// </summary>
     public partial class QCAlgorithm : MarshalByRefObject, IAlgorithm
     {
+        public readonly List<string> MyList;
+
         #region Documentation Attribute Categories
         const string AddingData = "Adding Data";
         const string AlgorithmFramework = "Algorithm Framework";
