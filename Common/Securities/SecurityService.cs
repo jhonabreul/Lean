@@ -259,7 +259,6 @@ namespace QuantConnect.Securities
                 addToSymbolCache: false,
                 underlying: null,
                 securityInitializer: _securityInitializerProvider.GetDefaultSecurityInitializer());
-                //securityInitializer: _securityInitializerProvider.SecurityInitializer);
         }
 
         /// <summary>
