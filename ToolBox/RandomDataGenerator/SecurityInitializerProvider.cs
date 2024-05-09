@@ -26,5 +26,10 @@ namespace QuantConnect.ToolBox.RandomDataGenerator
         {
             SecurityInitializer = securityInitializer;
         }
+
+        public ISecurityInitializer GetDefaultSecurityInitializer()
+        {
+            return Securities.SecurityInitializer.Null;
+        }
     }
 }

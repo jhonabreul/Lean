@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -30,5 +30,11 @@ namespace QuantConnect.Interfaces
         {
             get;
         }
+
+        /// <summary>
+        /// Gets the default security initializer used to initialize securities if the user does not specify one.
+        /// </summary>
+        /// <returns>The default security initializer</returns>
+        ISecurityInitializer GetDefaultSecurityInitializer();
     }
 }

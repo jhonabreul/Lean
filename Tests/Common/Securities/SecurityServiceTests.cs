@@ -33,7 +33,12 @@ namespace QuantConnect.Tests.Common.Securities
         private ISecurityService _securityService;
         private SubscriptionManager _subscriptionManager;
         private MarketHoursDatabase _marketHoursDatabase;
-        public ISecurityInitializer SecurityInitializer => QuantConnect.Securities.SecurityInitializer.Null;
+        public ISecurityInitializer SecurityInitializer => GetDefaultSecurityInitializer();
+
+        public ISecurityInitializer GetDefaultSecurityInitializer()
+        {
+            return QuantConnect.Securities.SecurityInitializer.Null;
+        }
 
         [SetUp]
         public void Setup()
@@ -175,19 +180,19 @@ namespace QuantConnect.Tests.Common.Securities
             Assert.IsTrue(security.Subscriptions.Any(x => x.TickType == TickType.Quote && x.Type == typeof(QuoteBar)));
             Assert.IsTrue(security.Subscriptions.Any(x => x.TickType == TickType.Trade && x.Type == typeof(TradeBar)));
         }
-        
+
         [Test]
         public void CreatesEquityOptionWithContractMultiplierEqualsToContractUnitOfTrade()
         {
             var underlying = Symbol.Create("TWX", SecurityType.Equity, Market.USA);
             var equityOption = Symbol.CreateOption(
-                underlying, 
-                Market.USA, 
-                OptionStyle.American, 
-                OptionRight.Call, 
+                underlying,
+                Market.USA,
+                OptionStyle.American,
+                OptionRight.Call,
                 320m,
                 new DateTime(2020, 12, 18));
-            
+
             var subscriptionTypes = new List<Tuple<Type, TickType>>
             {
                 new Tuple<Type, TickType>(typeof(TradeBar), TickType.Trade),
@@ -197,7 +202,7 @@ namespace QuantConnect.Tests.Common.Securities
 
             var configs = _subscriptionManager.SubscriptionDataConfigService.Add(equityOption, Resolution.Minute, true, false, false, false, false, subscriptionTypes);
             var equityOptionSecurity = (QuantConnect.Securities.Option.Option)_securityService.CreateSecurity(equityOption, configs, 1.0m);
-            
+
             Assert.AreEqual(100, equityOptionSecurity.ContractMultiplier);
             Assert.AreEqual(100,equityOptionSecurity.ContractUnitOfTrade);
         }
@@ -211,13 +216,13 @@ namespace QuantConnect.Tests.Common.Securities
                 new DateTime(2020, 12, 18));
 
             var futureOption = Symbol.CreateOption(
-                underlying, 
-                Market.CME, 
-                OptionStyle.American, 
-                OptionRight.Call, 
+                underlying,
+                Market.CME,
+                OptionStyle.American,
+                OptionRight.Call,
                 3250m,
                 new DateTime(2020, 12, 18));
-            
+
             var subscriptionTypes = new List<Tuple<Type, TickType>>
             {
                 new Tuple<Type, TickType>(typeof(TradeBar), TickType.Trade),
@@ -227,7 +232,7 @@ namespace QuantConnect.Tests.Common.Securities
 
             var configs = _subscriptionManager.SubscriptionDataConfigService.Add(futureOption, Resolution.Minute, true, false, false, false, false, subscriptionTypes);
             var futureOptionSecurity = (QuantConnect.Securities.Option.Option)_securityService.CreateSecurity(futureOption, configs, 1.0m);
-            
+
             Assert.AreEqual(50, futureOptionSecurity.ContractMultiplier);
             Assert.AreEqual(1, futureOptionSecurity.ContractUnitOfTrade);
         }
@@ -246,11 +251,11 @@ namespace QuantConnect.Tests.Common.Securities
                 SymbolPropertiesDatabase.FromDataFolder(),
                 algorithm,
                 new RegisteredSecurityDataTypesProvider(),
-                new SecurityCacheProvider(algorithm.Portfolio), 
+                new SecurityCacheProvider(algorithm.Portfolio),
                 mockedPrimaryExchangeProvider.Object);
 
             var configs = _subscriptionManager.SubscriptionDataConfigService.Add(typeof(TradeBar), equitySymbol, Resolution.Second, false, false, false);
-            
+
             // Act
             var equity = securityService.CreateSecurity(equitySymbol, configs, 1.0m, false);
 

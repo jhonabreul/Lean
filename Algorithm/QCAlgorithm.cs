@@ -141,6 +141,7 @@ namespace QuantConnect.Algorithm
         private SecurityDefinitionSymbolResolver _securityDefinitionSymbolResolver;
 
         private readonly HistoryRequestFactory _historyRequestFactory;
+        private readonly ISecurityInitializer _defaultSecurityInitializer;
 
         private IApi _api;
 
@@ -211,7 +212,8 @@ namespace QuantConnect.Algorithm
             // initialize the trade builder
             SetTradeBuilder(new TradeBuilder(FillGroupingMethod.FillToFill, FillMatchingMethod.FIFO));
 
-            SecurityInitializer = new BrokerageModelSecurityInitializer(BrokerageModel, SecuritySeeder.Null);
+            _defaultSecurityInitializer = new BrokerageModelSecurityInitializer(BrokerageModel, SecuritySeeder.Null);
+            SecurityInitializer = _defaultSecurityInitializer;
 
             CandlestickPatterns = new CandlestickPatterns(this);
 
@@ -951,6 +953,15 @@ namespace QuantConnect.Algorithm
             // this flag will prevent calls to SetBrokerageModel from overwriting this initializer
             _userSetSecurityInitializer = true;
             SecurityInitializer = securityInitializer;
+        }
+
+        /// <summary>
+        /// Gets the default security initializer used to initialize securities if the user does not specify one.
+        /// </summary>
+        /// <returns>The default security initializer</returns>
+        public ISecurityInitializer GetDefaultSecurityInitializer()
+        {
+            return _defaultSecurityInitializer;
         }
 
         /// <summary>

@@ -1242,5 +1242,11 @@ namespace QuantConnect.AlgorithmFactory.Python.Wrappers
         {
             _baseAlgorithm.SetTags(tags);
         }
+
+        /// <summary>
+        /// Gets the default security initializer used to initialize securities if the user does not specify one.
+        /// </summary>
+        /// <returns>The default security initializer</returns>
+        public ISecurityInitializer GetDefaultSecurityInitializer() => _baseAlgorithm.GetDefaultSecurityInitializer();
     }
 }
