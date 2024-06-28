@@ -157,7 +157,7 @@ namespace QuantConnect.Lean.Engine.DataFeeds
                                 }
 
                                 startLocalTime = Time.GetStartTimeForTradeBars(security.Exchange.Hours, startLocalTime,
-                                    Time.OneDay, 1, true, config.DataTimeZone);
+                                    Time.OneDay, 1, false, config.DataTimeZone);
                                 start = startLocalTime.ConvertToUtc(security.Exchange.TimeZone);
                             }
 
