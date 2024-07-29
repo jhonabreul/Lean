@@ -14,6 +14,7 @@
 */
 
 using System;
+using System.Runtime.CompilerServices;
 using MathNet.Numerics.Distributions;
 using QuantConnect.Util;
 
@@ -150,9 +151,16 @@ namespace QuantConnect.Indicators
             return values[0];
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static decimal DecimalMath(Func<double, double> function, decimal input)
         {
             return Convert.ToDecimal(function((double)input));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static decimal Divide(decimal numerator, decimal denominator)
+        {
+            return denominator != 0m ? numerator / denominator : 0m;
         }
     }
 }
