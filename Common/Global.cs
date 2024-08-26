@@ -930,6 +930,8 @@ namespace QuantConnect
                         return Exchange.CFE;
                     case "COMEX":
                         return Exchange.COMEX;
+                    case "EUREX":
+                        return Exchange.EUREX;
                     default:
                         return Exchange.UNKNOWN;
                 }
