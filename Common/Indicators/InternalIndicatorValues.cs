@@ -173,10 +173,7 @@ namespace QuantConnect.Indicators
                     value = _currentInfo.GetValue(value);
                 }
                 var point = value as IndicatorDataPoint;
-                if (Values.Count == 0 || point.EndTime != Values[^1].EndTime)
-                {
-                    Values.Add(point);
-                }
+                Values.Add(point);
 
                 return point;
             }

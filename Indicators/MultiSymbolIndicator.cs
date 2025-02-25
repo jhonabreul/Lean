@@ -68,6 +68,8 @@ namespace QuantConnect.Indicators
             WarmUpPeriod = period + (isTimezoneDifferent ? 1 : 0);
         }
 
+        private bool IsReadyToCalculate() => DataBySymbol.Values.Select(data => data.CurrentInputEndTimeUtc).Distinct().Count() == 1;
+
         /// <summary>
         /// Checks and computes the indicator if the input data matches.
         /// This method ensures the input data points are from matching time periods and different symbols.
@@ -91,7 +93,7 @@ namespace QuantConnect.Indicators
             symbolData.CurrentInput = input;
 
             // Ready to calculate when all symbols get data for the same time
-            if (DataBySymbol.Values.Select(data => data.CurrentInputEndTimeUtc).Distinct().Count() == 1)
+            if (IsReadyToCalculate())
             {
                 // Add the actual inputs that should be used to the rolling windows
                 foreach (var data in DataBySymbol.Values)
@@ -102,6 +104,18 @@ namespace QuantConnect.Indicators
             }
 
             return IndicatorValue;
+        }
+
+        /// <summary>
+        /// Computes the next value of this indicator from the given state
+        /// and returns an instance of the <see cref="IndicatorResult"/> class
+        /// </summary>
+        /// <param name="input">The input given to the indicator</param>
+        /// <returns>An IndicatorResult object including the status of the indicator</returns>
+        protected override IndicatorResult ValidateAndComputeNextValue(TInput input)
+        {
+            var nextValue = ComputeNextValue(input);
+            return new IndicatorResult(nextValue, IsReadyToCalculate() ? IndicatorStatus.Success : IndicatorStatus.ValueNotReady);
         }
 
         /// <summary>
