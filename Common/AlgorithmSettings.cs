@@ -157,6 +157,11 @@ namespace QuantConnect
         public TimeSpan DatabasesRefreshPeriod { get; set; }
 
         /// <summary>
+        /// Determines whether to terminate the algorithm when an asset is not supported by Lean or the brokerage
+        /// </summary>
+        public bool IgnoreUnknownAssetTypes { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="AlgorithmSettings"/> class
         /// </summary>
         public AlgorithmSettings()
