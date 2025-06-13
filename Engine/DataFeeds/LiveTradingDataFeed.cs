@@ -267,9 +267,11 @@ namespace QuantConnect.Lean.Engine.DataFeeds
                 // hours are set to always open to avoid OI data being filtered out due to the exchange being closed.
                 var useDailyStrictEndTimes = LeanData.UseDailyStrictEndTimes(_algorithm.Settings, request, request.Configuration.Symbol, request.Configuration.Increment, request.Security.Exchange.Hours);
 
-                enumerator = new LiveFillForwardEnumerator(_frontierTimeProvider, enumerator, request.Security.Exchange, fillForwardResolution,
+                var ff = new LiveFillForwardEnumerator(_frontierTimeProvider, enumerator, request.Security, request.Configuration, request.Security.Exchange, fillForwardResolution,
                     request.Configuration.ExtendedMarketHours, localEndTime, request.Configuration.Resolution, request.Configuration.DataTimeZone,
                     useDailyStrictEndTimes, request.Configuration.Type);
+                ff.Request = request;
+                enumerator = ff;
             }
 
             // make our subscriptions aware of the frontier of the data feed, prevents future data from spewing into the feed

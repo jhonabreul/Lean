@@ -313,9 +313,13 @@ namespace QuantConnect.Lean.Engine.DataFeeds
                 // so that OI data is available at the same time as trades and quotes.
                 var useDailyStrictEndTimes = LeanData.UseDailyStrictEndTimes(_algorithm.Settings, request, request.Configuration.Symbol,
                     request.Configuration.Increment, request.Security.Exchange.Hours);
-                enumerator = new FillForwardEnumerator(enumerator, request.Security.Exchange, fillForwardSpan,
+                var ff = new FillForwardEnumerator(enumerator, request.Security, request.Configuration, request.Security.Exchange, fillForwardSpan,
                     request.Configuration.ExtendedMarketHours, request.EndTimeLocal, request.Configuration.Increment,
                     request.Configuration.DataTimeZone, useDailyStrictEndTimes, request.Configuration.Type);
+
+                ff.Request = request;
+
+                enumerator = ff;
             }
 
             return enumerator;

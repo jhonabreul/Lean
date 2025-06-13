@@ -38,6 +38,7 @@ namespace QuantConnect.Lean.Engine.DataFeeds.Enumerators
         private BaseData _previous;
         private bool _ended;
         private bool _isFillingForward;
+        private bool _initialized;
 
         /// <summary>
         /// Whether to use strict daily end times
@@ -52,6 +53,8 @@ namespace QuantConnect.Lean.Engine.DataFeeds.Enumerators
         private readonly IEnumerator<BaseData> _enumerator;
         private readonly IReadOnlyRef<TimeSpan> _fillForwardResolution;
         private readonly bool _strictEndTimeIntraDayFillForward;
+        private readonly Security _security;
+        private readonly SubscriptionDataConfig _config;
 
         /// <summary>
         /// The exchange used to determine when to insert fill forward data
@@ -74,6 +77,8 @@ namespace QuantConnect.Lean.Engine.DataFeeds.Enumerators
         /// <param name="dailyStrictEndTimeEnabled">True if daily strict end times are enabled</param>
         /// <param name="dataType">The configuration data type this enumerator is for</param>
         public FillForwardEnumerator(IEnumerator<BaseData> enumerator,
+            Security security,
+            SubscriptionDataConfig config,
             SecurityExchange exchange,
             IReadOnlyRef<TimeSpan> fillForwardResolution,
             bool isExtendedMarketHours,
@@ -85,6 +90,8 @@ namespace QuantConnect.Lean.Engine.DataFeeds.Enumerators
             )
         {
             _subscriptionEndTime = subscriptionEndTime;
+            _security = security;
+            _config = config;
             Exchange = exchange;
             _enumerator = enumerator;
             _dataResolution = dataResolution;
@@ -137,6 +144,34 @@ namespace QuantConnect.Lean.Engine.DataFeeds.Enumerators
         /// <filterpriority>2</filterpriority>
         object IEnumerator.Current => Current;
 
+        public BaseDataRequest Request { get; internal set; }
+
+        private void Initialize()
+        {
+            if (_initialized)
+            {
+                return;
+            }
+
+            if (_security.Cache.TryGetValue(_config.Type, out var data))
+            {
+                // if the security cache has data, we can use it as the first data point
+                // this is useful for open interest data which is not consolidated and can arrive at any time
+                _previous = data.LastOrDefault(x => x.DataType != MarketDataType.Auxiliary);
+                if (_previous != null)
+                {
+                    // adjust the previous data point to the subscription start time to
+                    // avoid emitting fill forward data before that
+                    _previous = _previous.Clone();
+                    _previous.EndTime = Request.StartTimeLocal;
+                }
+
+                Log.Trace($"FillForwardEnumerator: Using {_config.Type.Name} cached data for symbol {_security.Symbol} at time {_previous?.Time} - {_previous?.EndTime}: {_previous?.Value}");
+            }
+
+            _initialized = true;
+        }
+
         /// <summary>
         /// Advances the enumerator to the next element of the collection.
         /// </summary>
@@ -146,6 +181,8 @@ namespace QuantConnect.Lean.Engine.DataFeeds.Enumerators
         /// <exception cref="T:System.InvalidOperationException">The collection was modified after the enumerator was created. </exception><filterpriority>2</filterpriority>
         public bool MoveNext()
         {
+            Initialize();
+
             if (_delistedTime.HasValue)
             {
                 // don't fill forward after data after the delisted date
