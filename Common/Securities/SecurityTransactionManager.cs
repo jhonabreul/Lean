@@ -422,7 +422,7 @@ namespace QuantConnect.Securities
                 return false;
             }
 
-            if (!orderTicket.OrderClosed.WaitOne(_marketOrderFillTimeout))
+            if (!_orderProcessor.WaitForOrderClosed(orderId, _marketOrderFillTimeout))
             {
                 if(_marketOrderFillTimeout > TimeSpan.Zero)
                 {

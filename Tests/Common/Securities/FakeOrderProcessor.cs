@@ -113,5 +113,10 @@ namespace QuantConnect.Tests.Common.Securities
                 .Aggregate(0m, (d, t) => d + t.QuantityRemaining);
             return new ProjectedHoldings(security.Holdings.Quantity, openOrderQuantity);
         }
+
+        public bool WaitForOrderClosed(int orderId, TimeSpan timeout)
+        {
+            return true;
+        }
     }
 }

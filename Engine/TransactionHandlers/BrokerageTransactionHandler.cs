@@ -41,6 +41,8 @@ namespace QuantConnect.Lean.Engine.TransactionHandlers
     /// </summary>
     public class BrokerageTransactionHandler : ITransactionHandler
     {
+        private ConcurrentDictionary<int, ManualResetEventSlim> _orderClosedEvents = new();
+
         private IAlgorithm _algorithm;
         private SignalExportManager _signalExport;
         private IBrokerage _brokerage;
@@ -317,6 +319,8 @@ namespace QuantConnect.Lean.Engine.TransactionHandlers
                 _completeOrderTickets.TryAdd(ticket.OrderId, ticket);
                 _orderRequestQueue.Add(request);
 
+                _orderClosedEvents.TryAdd(ticket.OrderId, new ManualResetEventSlim(false));
+
                 // wait for the transaction handler to set the order reference into the new order ticket,
                 // so we can ensure the order has already been added to the open orders,
                 // before returning the ticket to the algorithm.
@@ -517,6 +521,17 @@ namespace QuantConnect.Lean.Engine.TransactionHandlers
             }
 
             return ticket;
+        }
+
+        /// <summary>
+        /// Waits for the order with the specified id to be closed, or until the specified timeout is reached.
+        /// </summary>
+        /// <param name="orderId">The ID of the order to wait for</param>
+        /// <param name="timeout">The timeout</param>
+        /// <returns>Whether the order was closed or the timeout was reached</returns>
+        public bool WaitForOrderClosed(int orderId, TimeSpan timeout)
+        {
+            return !_orderClosedEvents.TryGetValue(orderId, out var orderClosedEvent) || orderClosedEvent.Wait(timeout);
         }
 
         /// <summary>
@@ -1326,6 +1341,12 @@ namespace QuantConnect.Lean.Engine.TransactionHandlers
 
                     // update the ticket after we've processed the fill, but before the event, this way everything is ready for user code
                     orderEvent.Ticket.AddOrderEvent(orderEvent);
+
+                    // There might not be a closed event for an order, like for automatic option exercise
+                    if (orderEvent.Status.IsClosed() && _orderClosedEvents.TryRemove(orderEvent.OrderId, out var orderClosedEvent))
+                    {
+                        orderClosedEvent.Set();
+                    }
                 }
             }
 

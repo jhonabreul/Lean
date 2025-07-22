@@ -37,7 +37,6 @@ namespace QuantConnect.Orders
         private FillState _fillState;
         private List<OrderEvent> _orderEventsImpl;
         private readonly SubmitOrderRequest _submitRequest;
-        private ManualResetEvent _orderStatusClosedEventImpl;
         private List<UpdateOrderRequest> _updateRequestsImpl;
         private ManualResetEvent _orderSetEventImpl;
 
@@ -46,7 +45,6 @@ namespace QuantConnect.Orders
 
         private List<OrderEvent> _orderEvents { get => _orderEventsImpl ??= new List<OrderEvent>(); }
         private List<UpdateOrderRequest> _updateRequests { get => _updateRequestsImpl ??= new List<UpdateOrderRequest>(); }
-        private ManualResetEvent _orderStatusClosedEvent { get => _orderStatusClosedEventImpl ??= new ManualResetEvent(false); }
         private ManualResetEvent _orderSetEvent { get => _orderSetEventImpl ??= new ManualResetEvent(false); }
 
         /// <summary>
@@ -203,14 +201,6 @@ namespace QuantConnect.Orders
                     return _orderEvents.ToList();
                 }
             }
-        }
-
-        /// <summary>
-        /// Gets a wait handle that can be used to wait until this order has filled
-        /// </summary>
-        public WaitHandle OrderClosed
-        {
-            get { return _orderStatusClosedEvent; }
         }
 
         /// <summary>
@@ -537,12 +527,6 @@ namespace QuantConnect.Orders
 
                     _fillState = new FillState(averageFillPrice, filledQuantity);
                 }
-            }
-
-            // fire the wait handle indicating this order is closed
-            if (orderEvent.Status.IsClosed())
-            {
-                _orderStatusClosedEvent.Set();
             }
         }
 

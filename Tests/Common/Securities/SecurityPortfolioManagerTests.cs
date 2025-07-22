@@ -2975,6 +2975,11 @@ namespace QuantConnect.Tests.Common.Securities
             {
                 throw new NotImplementedException();
             }
+
+            public bool WaitForOrderClosed(int orderId, TimeSpan timeout)
+            {
+                throw new NotImplementedException();
+            }
         }
 
         class TestCurrencyConversion : ICurrencyConversion
