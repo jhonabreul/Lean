@@ -93,7 +93,7 @@ namespace QuantConnect.Util
             {
                 fileNames = fileNames.Concat(Directory.EnumerateFiles(PluginDirectory, "*.dll"));
             }
-            LoadPartsSafely(fileNames.DistinctBy(Path.GetFileName));
+            LoadPartsSafely(fileNames.Where(x => !x.Contains("quickfix.", StringComparison.InvariantCultureIgnoreCase)).DistinctBy(Path.GetFileName));
         }
 
         private CompositionContainer _compositionContainer;
