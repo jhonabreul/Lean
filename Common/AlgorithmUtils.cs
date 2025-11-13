@@ -35,14 +35,12 @@ namespace QuantConnect
             var securitiesToSeed = securities.Where(x => x.Price == 0);
             var data = algorithm.GetLastKnownPrices(securitiesToSeed.Select(x => x.Symbol));
 
-            foreach (var security in securitiesToSeed)
+            foreach (var (symbol, symbolData) in data)
             {
-                if (data.TryGetValue(security.Symbol, out var seedData))
+                var security = securities.Single(x => x.Symbol == symbol);
+                foreach (var datum in symbolData)
                 {
-                    foreach (var datum in seedData)
-                    {
-                        security.SetMarketPrice(datum);
-                    }
+                    security.SetMarketPrice(datum);
                 }
             }
         }

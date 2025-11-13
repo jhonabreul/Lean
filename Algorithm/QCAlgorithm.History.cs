@@ -732,7 +732,7 @@ namespace QuantConnect.Algorithm
             }
 
             var data = GetLastKnownPrices([symbol]);
-            return data.Values.FirstOrDefault() ?? Enumerable.Empty<BaseData>();
+            return data.FirstOrDefault().Value ?? Enumerable.Empty<BaseData>();
         }
 
         /// <summary>
@@ -742,7 +742,7 @@ namespace QuantConnect.Algorithm
         /// <returns>Securities historical data</returns>
         [DocumentationAttribute(AddingData)]
         [DocumentationAttribute(HistoricalData)]
-        public Dictionary<Symbol, IEnumerable<BaseData>> GetLastKnownPrices(IEnumerable<Security> securities)
+        public IEnumerable<KeyValuePair<Symbol, IEnumerable<BaseData>>> GetLastKnownPrices(IEnumerable<Security> securities)
         {
             return GetLastKnownPrices(securities.Select(s => s.Symbol));
         }
@@ -754,22 +754,21 @@ namespace QuantConnect.Algorithm
         /// <returns>Securities historical data</returns>
         [DocumentationAttribute(AddingData)]
         [DocumentationAttribute(HistoricalData)]
-        public Dictionary<Symbol, IEnumerable<BaseData>> GetLastKnownPrices(IEnumerable<Symbol> symbols)
+        public IEnumerable<KeyValuePair<Symbol, IEnumerable<BaseData>>> GetLastKnownPrices(IEnumerable<Symbol> symbols)
         {
             if (HistoryProvider == null)
             {
                 return new Dictionary<Symbol, IEnumerable<BaseData>>();
             }
 
-            var data = new Dictionary<(Symbol, Type, TickType), BaseData>();
+            var data = new Dictionary<Symbol, LastKnownPricesData>();
             GetLastKnownPricesImpl(symbols, data);
 
-            return data
-                .GroupBy(kvp => kvp.Key.Item1)
-                .ToDictionary(g => g.Key,
-                    g => g.OrderBy(kvp => kvp.Value.Time)
-                        .ThenBy(kvp => GetTickTypeOrder(kvp.Key.Item1.SecurityType, kvp.Key.Item3))
-                        .Select(kvp => kvp.Value));
+            return data.Select(kvp => KeyValuePair.Create(kvp.Key,
+                kvp.Value.YieldData()
+                    .OrderBy(x => x.Time)
+                    .ThenBy(x => GetTickTypeOrder(x.Symbol.SecurityType, LeanData.GetCommonTickTypeForCommonDataTypes(x.GetType(), x.Symbol.SecurityType)))
+                    .Select(x => x)));
         }
 
         /// <summary>
@@ -805,7 +804,40 @@ namespace QuantConnect.Algorithm
                 .LastOrDefault();
         }
 
-        private void GetLastKnownPricesImpl(IEnumerable<Symbol> symbols, Dictionary<(Symbol, Type, TickType), BaseData> result,
+        private class LastKnownPricesData
+        {
+            public Symbol Symbol { get; set; }
+            public BaseData TradeBar { get; set; }
+            public BaseData QuoteBar { get; set; }
+            public BaseData OpenInterest { get; set; }
+            public Dictionary<(Type, TickType), BaseData> OtherData { get; set; }
+
+            public void AddOtherData(BaseData data, Type type, TickType tickType)
+            {
+                if (OtherData == null)
+                {
+                    OtherData = new Dictionary<(Type, TickType), BaseData>();
+                }
+                OtherData[(type, tickType)] = data;
+            }
+
+            public IEnumerable<BaseData> YieldData()
+            {
+                if (TradeBar != null) yield return TradeBar;
+                if (QuoteBar != null) yield return QuoteBar;
+                if (OpenInterest != null) yield return OpenInterest;
+                if (OtherData != null)
+                {
+                    foreach (var kvp in OtherData)
+                    {
+                        yield return kvp.Value;
+                    }
+                }
+                yield break;
+            }
+        }
+
+        private void GetLastKnownPricesImpl(IEnumerable<Symbol> symbols, Dictionary<Symbol, LastKnownPricesData> result,
             int attempts = 0, IEnumerable<HistoryRequest> failedRequests = null)
         {
             IEnumerable<HistoryRequest> historyRequests;
@@ -815,42 +847,49 @@ namespace QuantConnect.Algorithm
 
             if (attempts == 0)
             {
-                historyRequests = CreateBarCountHistoryRequests(symbols, SeedLookbackPeriod, fillForward: false, useAllSubscriptions: true);
+                historyRequests = CreateBarCountHistoryRequests(symbols, SeedLookbackPeriod, fillForward: false, useAllSubscriptions: true).Select(request =>
+                {
+                    // For speed and memory usage, use Resolution.Minute as the minimum resolution
+                    request.Resolution = (Resolution)Math.Max((int)Resolution.Minute, (int)request.Resolution);
+                    // force no fill forward behavior
+                    request.FillForwardResolution = null;
+                    return request;
+                });
             }
             else if (attempts == 1)
             {
                 // If the first attempt to get the last know price returns no data, it maybe the case of an illiquid security.
                 // We increase the look-back period for this case accordingly to the resolution to cover a longer period
-                historyRequests = failedRequests
-                    .GroupBy(request => request.Symbol)
-                    .Select(group =>
-                    {
-                        var symbolRequests = group.ToList();
-                        var resolution = symbolRequests[0].Resolution;
-                        var periods = resolution == Resolution.Daily
+                historyRequests = failedRequests.Select(request =>
+                {
+                    var resolution = request.Resolution;
+                    var periods = resolution == Resolution.Daily
                             ? SeedRetryDailyLookbackPeriod
                             : resolution == Resolution.Hour ? SeedRetryHourLookbackPeriod : SeedRetryMinuteLookbackPeriod;
-                        return CreateBarCountHistoryRequests([group.Key], periods, fillForward: false, useAllSubscriptions: true)
-                            .Where(request => symbolRequests.Any(x => x.DataType == request.DataType));
-                    })
-                    .SelectMany(x => x);
+                    var start = _historyRequestFactory.GetStartTimeAlgoTz(request.Symbol, periods, resolution, request.ExchangeHours, request.DataTimeZone,
+                        request.DataType, request.IncludeExtendedMarketHours);
+                    return new HistoryRequest(request, request.Symbol, start.ConvertToUtc(TimeZone), request.EndTimeUtc);
+                });
             }
             else
             {
                 // Fall back to bigger daily requests as a last resort
-                historyRequests = CreateBarCountHistoryRequests(failedRequests.Select(x => x.Symbol).Distinct(),
-                    Math.Min(60, 5 * SeedRetryDailyLookbackPeriod), Resolution.Daily, fillForward: false, useAllSubscriptions: true);
+                historyRequests = failedRequests.Select(request =>
+                {
+                    var resolution = Resolution.Daily;
+                    var periods = Math.Min(60, 5 * SeedRetryDailyLookbackPeriod);
+                    var start = _historyRequestFactory.GetStartTimeAlgoTz(request.Symbol, periods, resolution, request.ExchangeHours, request.DataTimeZone,
+                        request.DataType, request.IncludeExtendedMarketHours);
+                    return new HistoryRequest(request, request.Symbol, start.ConvertToUtc(TimeZone), request.EndTimeUtc);
+                });
             }
 
-            var requests = historyRequests.Select(request =>
-            {
-                // For speed and memory usage, use Resolution.Minute as the minimum resolution
-                request.Resolution = (Resolution)Math.Max((int)Resolution.Minute, (int)request.Resolution);
-                // force no fill forward behavior
-                request.FillForwardResolution = null;
-                return request;
-            }).ToList();
+            var requests = historyRequests.ToList();
 
+            var doneRequests = new bool[requests.Count];
+            var doneRequestsCount = 0;
+
+            LastKnownPricesData lastSymbolData = null;
             foreach (var slice in History(requests))
             {
                 for (var i = 0; i < requests.Count; i++)
@@ -859,12 +898,17 @@ namespace QuantConnect.Algorithm
 
                     // keep the last data point per tick type
                     BaseData data = null;
+                    var isQuoteBar = false;
+                    var isTradeBar = false;
+                    var isOpenInterest = false;
+                    var isOtherData = false;
 
                     if (historyRequest.DataType == typeof(QuoteBar))
                     {
                         if (slice.QuoteBars.TryGetValue(historyRequest.Symbol, out var quoteBar))
                         {
                             data = quoteBar;
+                            isQuoteBar = true;
                         }
                     }
                     else if (historyRequest.DataType == typeof(TradeBar))
@@ -872,6 +916,7 @@ namespace QuantConnect.Algorithm
                         if (slice.Bars.TryGetValue(historyRequest.Symbol, out var quoteBar))
                         {
                             data = quoteBar;
+                            isTradeBar = true;
                         }
                     }
                     else if (historyRequest.DataType == typeof(OpenInterest))
@@ -879,6 +924,7 @@ namespace QuantConnect.Algorithm
                         if (slice.Ticks.TryGetValue(historyRequest.Symbol, out var openInterests))
                         {
                             data = openInterests[0];
+                            isOpenInterest = true;
                         }
                     }
                     // No Tick data, resolution is limited to Minute as minimum
@@ -888,21 +934,56 @@ namespace QuantConnect.Algorithm
                         if (typeData.ContainsKey(historyRequest.Symbol))
                         {
                             data = typeData[historyRequest.Symbol];
+                            isOtherData = true;
                         }
                     }
 
                     if (data != null)
                     {
-                        result[(historyRequest.Symbol, historyRequest.DataType, historyRequest.TickType)] = data;
+                        LastKnownPricesData symbolData;
+                        if (lastSymbolData != null && lastSymbolData.Symbol == historyRequest.Symbol)
+                        {
+                            symbolData = lastSymbolData;
+                        }
+                        else if (!result.TryGetValue(historyRequest.Symbol, out symbolData))
+                        {
+                            symbolData = new LastKnownPricesData() { Symbol = historyRequest.Symbol };
+                            result[historyRequest.Symbol] = symbolData;
+                        }
+
+                        lastSymbolData = symbolData;
+
+                        if (isQuoteBar)
+                        {
+                            symbolData.QuoteBar = data;
+                        }
+                        else if (isTradeBar)
+                        {
+                            symbolData.TradeBar = data;
+                        }
+                        else if (isOpenInterest)
+                        {
+                            symbolData.OpenInterest = data;
+                        }
+                        else if (isOtherData)
+                        {
+                            symbolData.AddOtherData(data, historyRequest.DataType, historyRequest.TickType);
+                        }
+
+                        if (!doneRequests[i])
+                        {
+                            doneRequests[i] = true;
+                            doneRequestsCount++;
+                        }
                     }
                 }
             }
 
-            if (attempts < 2)
+            if (attempts < 2 && doneRequestsCount < requests.Count)
             {
                 // Give it another try to get data for all symbols and all data types
                 GetLastKnownPricesImpl(null, result, attempts + 1,
-                    requests.Where((request, i) => !result.ContainsKey((request.Symbol, request.DataType, request.TickType))));
+                    requests.Where((request, i) => !doneRequests[i]));
             }
         }
 
