@@ -46,7 +46,8 @@ namespace QuantConnect.Securities.IndexOption
             IRegisteredSecurityDataTypesProvider registeredTypes,
             SecurityCache securityCache,
             Security underlying,
-            SettlementType settlementType = SettlementType.Cash)
+            SettlementType settlementType = SettlementType.Cash,
+            IOptionPriceModelProvider priceModelProvider = null)
             : base(symbol,
                 quoteCurrency,
                 symbolProperties,
@@ -63,7 +64,8 @@ namespace QuantConnect.Securities.IndexOption
                 new IndexOptionPriceVariationModel(),
                 currencyConverter,
                 registeredTypes,
-                underlying
+                underlying,
+                priceModelProvider
             )
         {
             ExerciseSettlement = settlementType;
