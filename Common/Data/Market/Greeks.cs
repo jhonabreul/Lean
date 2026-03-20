@@ -130,5 +130,23 @@ namespace QuantConnect.Data.Market
             Rho = rho;
             Lambda = lambda;
         }
+
+        /// <summary>
+        /// Calculates the annualized theta value based on a daily theta input.
+        /// </summary>
+        /// <param name="thetaPerDay">The theta value per day to be annualized.</param>
+        /// <returns>The annualized theta value, calculated as the daily theta multiplied by 365. Returns decimal.MaxValue or
+        /// decimal.MinValue if the result overflows.</returns>
+        public static decimal GetSafeTheta(decimal thetaPerDay)
+        {
+            try
+            {
+                return thetaPerDay * 365m;
+            }
+            catch (OverflowException)
+            {
+                return thetaPerDay < 0 ? decimal.MinValue : decimal.MaxValue;
+            }
+        }
     }
 }
