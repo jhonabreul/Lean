@@ -39,19 +39,8 @@ jobs:
             -- TestRunParameters.Parameter\(name=\"log-handler\", value=\"ConsoleErrorLogHandler\"\) \
             TestRunParameters.Parameter\(name=\"reduced-disk-size\", value=\"true\"\)
 
-      - name: Summarize failures
+      - name: Collect test diagnostics
         if: failure()
-        run: ./ci_summarize_test_failures.sh
-
-      - name: Upload crash dumps and test results
-        if: failure()
-        uses: actions/upload-artifact@v4
+        uses: ./.github/actions/collect-test-diagnostics
         with:
-          name: regression-test-results-${{ github.run_id }}-attempt-${{ github.run_attempt }}
-          path: |
-            TestResults/**/*.dmp
-            TestResults/**/*.crashreport.json
-            TestResults/**/Sequence_*.xml
-            TestResults/**/*.trx
-          retention-days: 14
-          if-no-files-found: ignore
+          artifact-name-prefix: regression-test-results

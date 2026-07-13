@@ -1,0 +1,31 @@
+name: Collect test diagnostics
+description: >
+  Writes a test failure summary (failed tests from trx, crash dumps, blame sequence) to the
+  job summary page and uploads the TestResults diagnostics (dumps, crash reports, blame
+  sequence files, trx) as a run artifact. Call from an 'if: failure()' step after a
+  'dotnet test' step that used --results-directory TestResults.
+
+inputs:
+  artifact-name-prefix:
+    description: Prefix for the uploaded artifact name (run id and attempt are appended)
+    required: false
+    default: test-results
+
+runs:
+  using: composite
+  steps:
+    - name: Summarize failures
+      shell: bash
+      run: ./ci_summarize_test_failures.sh
+
+    - name: Upload crash dumps and test results
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name-prefix }}-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+        path: |
+          TestResults/**/*.dmp
+          TestResults/**/*.crashreport.json
+          TestResults/**/Sequence_*.xml
+          TestResults/**/*.trx
+        retention-days: 14
+        if-no-files-found: ignore

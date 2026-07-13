@@ -64,19 +64,6 @@ jobs:
               ;;
           esac
 
-      - name: Summarize failures
+      - name: Collect test diagnostics
         if: failure()
-        run: ./ci_summarize_test_failures.sh
-
-      - name: Upload crash dumps and test results
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-${{ github.run_id }}-attempt-${{ github.run_attempt }}
-          path: |
-            TestResults/**/*.dmp
-            TestResults/**/*.crashreport.json
-            TestResults/**/Sequence_*.xml
-            TestResults/**/*.trx
-          retention-days: 14
-          if-no-files-found: ignore
+        uses: ./.github/actions/collect-test-diagnostics
