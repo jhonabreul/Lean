@@ -31,6 +31,17 @@ jobs:
           # Add exception
           git config --global --add safe.directory $GITHUB_WORKSPACE
 
+          # On a test host crash, have the runtime write a minidump plus a crash report json
+          # (native + managed stacks of every thread) into TestResults so the artifact upload
+          # below preserves them. This also catches crashes the vstest blame collector misses.
+          export DOTNET_DbgEnableMiniDump=1
+          export DOTNET_DbgMiniDumpType=1  # mini: full dumps of a test host with CPython loaded are too large
+          export DOTNET_DbgMiniDumpName="$GITHUB_WORKSPACE/TestResults/coredump.%p.dmp"
+          export DOTNET_EnableCrashReport=1
+          # Print the Python tracebacks of all threads to stderr on a fatal signal (SIGSEGV/SIGABRT),
+          # so a native crash in the Python runtime is identifiable directly from the console log
+          export PYTHONFAULTHANDLER=1
+
           # Get Last Commit of the Current Tag
           TAG_COMMIT=$(git rev-parse HEAD) && echo "CURRENT BRANCH LAST COMMIT $TAG_COMMIT"
 
@@ -41,7 +52,8 @@ jobs:
           dotnet build /p:Configuration=Release /v:quiet /p:WarningLevel=1 QuantConnect.Lean.sln
 
           # Run Tests
-          dotnet test ./Tests/bin/Release/QuantConnect.Tests.dll --blame-hang-timeout 300seconds --blame-crash --filter "TestCategory!=TravisExclude&TestCategory!=ResearchRegressionTests" -- TestRunParameters.Parameter\(name=\"log-handler\", value=\"ConsoleErrorLogHandler\"\)
+          mkdir -p TestResults
+          dotnet test ./Tests/bin/Release/QuantConnect.Tests.dll --blame-hang-timeout 300seconds --blame-hang-dump-type mini --blame-crash --blame-crash-dump-type mini --results-directory TestResults --logger "trx;LogFileName=results.trx" --filter "TestCategory!=TravisExclude&TestCategory!=ResearchRegressionTests" -- TestRunParameters.Parameter\(name=\"log-handler\", value=\"ConsoleErrorLogHandler\"\)
 
           # Generate & Publish python stubs
           echo "GITHUB_REF ${{ github.ref }}"
@@ -59,3 +71,43 @@ jobs:
               echo "Skipping stub generation"
               ;;
           esac
+
+      - name: Summarize failures
+        if: failure()
+        run: |
+          mkdir -p TestResults  # may not exist if the build failed before the test step
+          {
+            echo "## Test failures"
+            echo '```'
+            grep -rhoE '<UnitTestResult[^>]*outcome="Failed"[^>]*>' TestResults --include='*.trx' 2>/dev/null \
+              | grep -oE 'testName="[^"]*"' | sed 's/testName=//;s/"//g' | sort -u || echo "no failed tests recorded in trx"
+            echo '```'
+            DUMPS=$(find TestResults -name '*.dmp' -o -name '*.crashreport.json' 2>/dev/null)
+            if [ -n "$DUMPS" ]; then
+              echo "## Crash dumps (see run artifacts)"
+              echo '```'
+              ls -lh $DUMPS
+              echo '```'
+            fi
+            # Tests that were in-flight when the host crashed or hung (from the blame collector)
+            SEQ=$(find TestResults -name 'Sequence_*.xml' 2>/dev/null)
+            if [ -n "$SEQ" ]; then
+              echo "## Tests in progress at crash/hang (blame sequence)"
+              echo '```'
+              cat $SEQ
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload crash dumps and test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: |
+            TestResults/**/*.dmp
+            TestResults/**/*.crashreport.json
+            TestResults/**/Sequence_*.xml
+            TestResults/**/*.trx
+          retention-days: 14
+          if-no-files-found: ignore
