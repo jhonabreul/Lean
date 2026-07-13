@@ -31,16 +31,8 @@ jobs:
           # Add exception
           git config --global --add safe.directory $GITHUB_WORKSPACE
 
-          # On a test host crash, have the runtime write a minidump plus a crash report json
-          # (native + managed stacks of every thread) into TestResults so the artifact upload
-          # below preserves them. This also catches crashes the vstest blame collector misses.
-          export DOTNET_DbgEnableMiniDump=1
-          export DOTNET_DbgMiniDumpType=1  # mini: full dumps of a test host with CPython loaded are too large
-          export DOTNET_DbgMiniDumpName="$GITHUB_WORKSPACE/TestResults/coredump.%p.dmp"
-          export DOTNET_EnableCrashReport=1
-          # Print the Python tracebacks of all threads to stderr on a fatal signal (SIGSEGV/SIGABRT),
-          # so a native crash in the Python runtime is identifiable directly from the console log
-          export PYTHONFAULTHANDLER=1
+          # Enable test host crash diagnostics (minidumps, crash reports, Python fault handler)
+          . ./ci_test_diagnostics_env.sh
 
           # Get Last Commit of the Current Tag
           TAG_COMMIT=$(git rev-parse HEAD) && echo "CURRENT BRANCH LAST COMMIT $TAG_COMMIT"
@@ -74,30 +66,7 @@ jobs:
 
       - name: Summarize failures
         if: failure()
-        run: |
-          mkdir -p TestResults  # may not exist if the build failed before the test step
-          {
-            echo "## Test failures"
-            echo '```'
-            grep -rhoE '<UnitTestResult[^>]*outcome="Failed"[^>]*>' TestResults --include='*.trx' 2>/dev/null \
-              | grep -oE 'testName="[^"]*"' | sed 's/testName=//;s/"//g' | sort -u || echo "no failed tests recorded in trx"
-            echo '```'
-            DUMPS=$(find TestResults -name '*.dmp' -o -name '*.crashreport.json' 2>/dev/null)
-            if [ -n "$DUMPS" ]; then
-              echo "## Crash dumps (see run artifacts)"
-              echo '```'
-              ls -lh $DUMPS
-              echo '```'
-            fi
-            # Tests that were in-flight when the host crashed or hung (from the blame collector)
-            SEQ=$(find TestResults -name 'Sequence_*.xml' 2>/dev/null)
-            if [ -n "$SEQ" ]; then
-              echo "## Tests in progress at crash/hang (blame sequence)"
-              echo '```'
-              cat $SEQ
-              echo '```'
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+        run: ./ci_summarize_test_failures.sh
 
       - name: Upload crash dumps and test results
         if: failure()

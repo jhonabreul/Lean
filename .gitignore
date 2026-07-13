@@ -40,6 +40,9 @@
 # Include docker launch scripts for Mac/Linux
 !run_docker.sh
 !research/run_docker_notebook.sh
+# Include CI helper scripts
+!ci_test_diagnostics_env.sh
+!ci_summarize_test_failures.sh
 
 # QC Config Files:
 # config.json
