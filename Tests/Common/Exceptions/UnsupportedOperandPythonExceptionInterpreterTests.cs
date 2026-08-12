@@ -94,7 +94,7 @@ namespace QuantConnect.Tests.Common.Exceptions
         [Test]
         public void DatetimeAndDateSubtractionGetsTheDatetimeHint()
         {
-            // (contract.id.date - self.time.date()).days, the most common fleet shape of this error
+            // (contract.id.date - self.time.date()).days, the most common shape of this error
             var exception = CreatePythonException("datetime_and_date_subtraction");
             var interpreter = new UnsupportedOperandPythonExceptionInterpreter();
             Assert.True(interpreter.CanInterpret(exception));
