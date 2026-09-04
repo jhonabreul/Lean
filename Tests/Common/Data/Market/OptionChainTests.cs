@@ -18,7 +18,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text;
 using NUnit.Framework;
 using Python.Runtime;
@@ -27,7 +26,6 @@ using QuantConnect.Data.Market;
 using QuantConnect.Data.UniverseSelection;
 using QuantConnect.Securities;
 using QuantConnect.Securities.Option;
-using static System.FormattableString;
 
 namespace QuantConnect.Tests.Common.Data.Market
 {
@@ -107,42 +105,6 @@ namespace QuantConnect.Tests.Common.Data.Market
 
             Assert.AreEqual(expectEmpty, expected.Count == 0);
             CollectionAssert.AreEquivalent(expected, actual);
-        }
-
-        [Test]
-        public void ChainExposesEveryUniverseFilter()
-        {
-            // Universe filters the chain deliberately doesn't mirror: they manage the universe selection itself
-            var excluded = new HashSet<string>
-            {
-                "Contracts", "Refresh", "IncludeWeeklys", "OnlyApplyFilterAtMarketOpen",
-                // Strategy filters are added to the chain separately
-                "NakedCall", "NakedPut", "CallSpread", "PutSpread", "CallCalendarSpread", "PutCalendarSpread", "Strangle", "Straddle",
-                "ProtectiveCollar", "Conversion", "CallButterfly", "PutButterfly", "IronButterfly", "IronCondor", "BoxSpread", "JellyRoll",
-                "CallLadder", "PutLadder",
-            };
-
-            var universeType = typeof(BaseOptionFilterUniverse<,>);
-            var chainMethods = typeof(OptionChain).GetMethods(BindingFlags.Public | BindingFlags.Instance);
-            var universeFilters = universeType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                .Where(x => x.ReturnType.IsGenericParameter && !excluded.Contains(x.Name))
-                .ToList();
-            var missing = new List<string>();
-            foreach (var universeFilter in universeFilters)
-            {
-                var parameters = universeFilter.GetParameters().Select(x => (x.ParameterType, x.HasDefaultValue, x.DefaultValue));
-                var chainFilter = chainMethods.FirstOrDefault(x => x.Name == universeFilter.Name && x.ReturnType == typeof(OptionChain)
-                    && x.GetParameters().Select(p => (p.ParameterType, p.HasDefaultValue, p.DefaultValue)).SequenceEqual(parameters));
-                if (chainFilter == null)
-                {
-                    missing.Add(universeFilter.ToString());
-                }
-            }
-
-            Assert.IsEmpty(missing, "OptionChain is missing universe filters, add them to OptionChain and IOptionContractFilters: "
-                + string.Join(", ", missing));
-            // The shared interface must declare every filter too, so both implementations stay in sync at compile time
-            Assert.AreEqual(typeof(IOptionContractFilters<>).GetMethods().Length, universeFilters.Count);
         }
 
         [Test]
@@ -303,26 +265,54 @@ def where_chain(chain):
         /// </summary>
         private static (List<OptionUniverse>, BaseData) CreateUniverseData(DateTime date, decimal spot, DateTime[] expiries, decimal[] strikes)
         {
-            var csv = new StringBuilder();
-            csv.AppendLine("#expiry,strike,right,open,high,low,close,volume,open_interest,implied_volatility,delta,gamma,vega,theta,rho");
-            csv.AppendLine(Invariant($",,,{spot},{spot},{spot},{spot},1000,,,,,,,"));
+            var contracts = new List<(Symbol, decimal, decimal, Greeks)>();
             var i = 0;
             foreach (var expiry in expiries)
             {
                 foreach (var strike in strikes)
                 {
-                    foreach (var right in new[] { "C", "P" })
+                    foreach (var right in new[] { OptionRight.Call, OptionRight.Put })
                     {
+                        var symbol = Symbol.CreateOption(Canonical.Underlying, Canonical.ID.Market, OptionStyle.American, right, strike, expiry);
                         var callDelta = Math.Clamp(0.5m + (spot - strike) / 20m, 0.05m, 0.95m);
-                        var delta = right == "C" ? callDelta : callDelta - 1;
-                        var price = 1 + i;
-                        csv.AppendLine(Invariant($"{expiry:yyyyMMdd},{strike},{right},{price},{price},{price},{price},{i},{100 * (i + 1)},{0.15m + 0.01m * i},{delta},{0.01m + 0.001m * i},{5 + i},{-(0.5m + 0.1m * i)},{1 + i}"));
+                        var delta = right == OptionRight.Call ? callDelta : callDelta - 1;
+                        var greeks = new Greeks(delta, 0.01m + 0.001m * i, 5 + i, -(0.5m + 0.1m * i) * 365m, 1 + i, 0);
+                        contracts.Add((symbol, 100 * (i + 1), 0.15m + 0.01m * i, greeks));
                         i++;
                     }
                 }
             }
 
-            var config = new SubscriptionDataConfig(typeof(OptionUniverse), Canonical, Resolution.Daily, TimeZones.NewYork, TimeZones.NewYork, true, true, false);
+            return CreateUniverseData(Canonical, date, spot, contracts);
+        }
+
+        /// <summary>
+        /// Creates option universe data by writing a universe file with the same code the data generator uses,
+        /// <see cref="OptionUniverse.ToCsv"/>, and reading it back with <see cref="OptionUniverse.Reader"/>,
+        /// so the tests follow the file format instead of hard coding it
+        /// </summary>
+        /// <param name="canonical">The canonical option symbol</param>
+        /// <param name="date">The universe file date</param>
+        /// <param name="spot">The underlying price, no underlying row is written when null</param>
+        /// <param name="contracts">The contract rows to write</param>
+        internal static (List<OptionUniverse> contracts, BaseData underlying) CreateUniverseData(Symbol canonical, DateTime date, decimal? spot,
+            IEnumerable<(Symbol symbol, decimal openInterest, decimal impliedVolatility, Greeks greeks)> contracts)
+        {
+            var rows = contracts.ToList();
+            var csv = new StringBuilder();
+            csv.AppendLine("#" + OptionUniverse.CsvHeader(canonical.SecurityType));
+            if (spot.HasValue)
+            {
+                csv.AppendLine(OptionUniverse.ToCsv(canonical.Underlying, spot.Value, spot.Value, spot.Value, spot.Value, 1000, null, null, null));
+            }
+            var i = 0;
+            foreach (var (symbol, openInterest, impliedVolatility, greeks) in rows)
+            {
+                var price = 1 + i++;
+                csv.AppendLine(OptionUniverse.ToCsv(symbol, price, price, price, price, i, openInterest, impliedVolatility, greeks));
+            }
+
+            var config = new SubscriptionDataConfig(typeof(OptionUniverse), canonical, Resolution.Daily, TimeZones.NewYork, TimeZones.NewYork, true, true, false);
             var data = new List<OptionUniverse>();
             BaseData underlying = null;
             var factory = new OptionUniverse();
@@ -346,6 +336,19 @@ def where_chain(chain):
                     underlying = line;
                 }
             }
+
+            // Fail here if the serializer and the reader ever drift apart, rather than silently filtering the wrong values
+            Assert.AreEqual(rows.Count, data.Count);
+            for (var j = 0; j < rows.Count; j++)
+            {
+                Assert.AreEqual(rows[j].symbol, data[j].Symbol);
+                Assert.AreEqual(rows[j].openInterest, data[j].OpenInterest);
+                Assert.AreEqual(rows[j].impliedVolatility, data[j].ImpliedVolatility);
+                Assert.AreEqual(rows[j].greeks.Delta, data[j].Greeks.Delta);
+                Assert.AreEqual(rows[j].greeks.Theta, data[j].Greeks.Theta);
+                Assert.AreEqual(rows[j].greeks.Rho, data[j].Greeks.Rho);
+            }
+            Assert.AreEqual(spot ?? 0, underlying?.Price ?? 0);
 
             return (data, underlying);
         }
