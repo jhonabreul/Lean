@@ -18,6 +18,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using QuantConnect.Data.Market;
+using QuantConnect.Securities;
 using QuantConnect.Python;
 using QuantConnect.Util;
 
@@ -26,7 +27,7 @@ namespace QuantConnect.Data.UniverseSelection
     /// <summary>
     /// Represents a universe of options data
     /// </summary>
-    public class OptionUniverse : BaseChainUniverseData
+    public class OptionUniverse : BaseChainUniverseData, IOptionContractData
     {
         /// <summary>
         /// Cache for the symbols to avoid creating them multiple times

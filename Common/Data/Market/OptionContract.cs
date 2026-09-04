@@ -24,7 +24,7 @@ namespace QuantConnect.Data.Market
     /// <summary>
     /// Defines a single option contract at a specific expiration and strike price
     /// </summary>
-    public class OptionContract : BaseContract
+    public class OptionContract : BaseContract, IOptionContractData
     {
         private IOptionData _optionData = OptionPriceModelResultData.Null;
         private readonly SymbolProperties _symbolProperties;
@@ -103,6 +103,11 @@ namespace QuantConnect.Data.Market
         /// Gets the last price the underlying security traded at
         /// </summary>
         public decimal UnderlyingLastPrice => _optionData.UnderlyingLastPrice;
+
+        /// <summary>
+        /// The option symbol properties
+        /// </summary>
+        internal SymbolProperties SymbolProperties => _symbolProperties;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="OptionContract"/> class

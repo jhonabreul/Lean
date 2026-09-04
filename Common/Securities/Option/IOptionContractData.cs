@@ -11,22 +11,31 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
 */
 
-using System.Collections.Generic;
+using QuantConnect.Data.Market;
 
 namespace QuantConnect.Securities
 {
     /// <summary>
-    /// Represents derivative symbols universe used in filtering.
+    /// The option contract data the option filters work with,
+    /// implemented by both option universe selection data and option chain contracts
     /// </summary>
-    public interface IDerivativeSecurityFilterUniverse<T> : IEnumerable<T>
-        where T : IChainContractData
+    public interface IOptionContractData : IChainContractData
     {
         /// <summary>
-        /// The number of contracts in the universe
+        /// The greeks of the contract
         /// </summary>
-        int Count { get; }
+        Greeks Greeks { get; }
+
+        /// <summary>
+        /// The implied volatility of the contract
+        /// </summary>
+        decimal ImpliedVolatility { get; }
+
+        /// <summary>
+        /// The open interest of the contract
+        /// </summary>
+        decimal OpenInterest { get; }
     }
 }

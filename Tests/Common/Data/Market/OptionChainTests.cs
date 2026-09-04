@@ -1,0 +1,353 @@
+/*
+ * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
+ * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+*/
+
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using NUnit.Framework;
+using Python.Runtime;
+using QuantConnect.Data;
+using QuantConnect.Data.Market;
+using QuantConnect.Data.UniverseSelection;
+using QuantConnect.Securities;
+using QuantConnect.Securities.Option;
+using static System.FormattableString;
+
+namespace QuantConnect.Tests.Common.Data.Market
+{
+    [TestFixture]
+    public class OptionChainTests
+    {
+        private static readonly DateTime Date = new(2016, 2, 26);
+        private static readonly Symbol Canonical = Symbol.CreateCanonicalOption(Symbols.SPY);
+        private const decimal UnderlyingPrice = 101m;
+        private static readonly DateTime[] Expiries = { new(2016, 3, 4), new(2016, 3, 18), new(2016, 4, 15), new(2016, 6, 17) };
+        private static readonly decimal[] Strikes = { 90m, 95m, 97.5m, 100m, 102.5m, 105m, 110m };
+
+        private List<OptionUniverse> _data;
+        private BaseData _underlying;
+        private SymbolProperties _symbolProperties;
+        private Option _option;
+
+        [OneTimeSetUp]
+        public void OneTimeSetUp()
+        {
+            (_data, _underlying) = CreateUniverseData(Date, UnderlyingPrice, Expiries, Strikes);
+            _symbolProperties = SymbolPropertiesDatabase.FromDataFolder().GetSymbolProperties(QuantConnect.Market.USA, Canonical, SecurityType.Option, Currencies.USD);
+            _option = CreateOption();
+        }
+
+        private static IEnumerable<TestCaseData> FilterCases()
+        {
+            yield return Case("Strikes(-2, 2)", u => u.Strikes(-2, 2), c => c.Strikes(-2, 2));
+            yield return Case("Strikes(0, 0)", u => u.Strikes(0, 0), c => c.Strikes(0, 0));
+            yield return Case("Strikes(-1, 0)", u => u.Strikes(-1, 0), c => c.Strikes(-1, 0));
+            yield return Case("Strikes(-100, -10)", u => u.Strikes(-100, -10), c => c.Strikes(-100, -10), empty: true);
+            yield return Case("Expiration(0, 10)", u => u.Expiration(0, 10), c => c.Expiration(0, 10));
+            yield return Case("Expiration(10, 60)", u => u.Expiration(10, 60), c => c.Expiration(10, 60));
+            yield return Case("Expiration(TimeSpan)", u => u.Expiration(TimeSpan.FromDays(30), TimeSpan.FromDays(200)),
+                c => c.Expiration(TimeSpan.FromDays(30), TimeSpan.FromDays(200)));
+            yield return Case("Expiration(500, 600)", u => u.Expiration(500, 600), c => c.Expiration(500, 600), empty: true);
+            yield return Case("CallsOnly", u => u.CallsOnly(), c => c.CallsOnly());
+            yield return Case("PutsOnly", u => u.PutsOnly(), c => c.PutsOnly());
+            yield return Case("StandardsOnly", u => u.StandardsOnly(), c => c.StandardsOnly());
+            yield return Case("WeeklysOnly", u => u.WeeklysOnly(), c => c.WeeklysOnly());
+            yield return Case("FrontMonth", u => u.FrontMonth(), c => c.FrontMonth());
+            yield return Case("BackMonth", u => u.BackMonth(), c => c.BackMonth());
+            yield return Case("BackMonths", u => u.BackMonths(), c => c.BackMonths());
+            yield return Case("Delta", u => u.Delta(0.4m, 0.6m), c => c.Delta(0.4m, 0.6m));
+            yield return Case("D", u => u.D(-0.6m, -0.4m), c => c.D(-0.6m, -0.4m));
+            yield return Case("Delta(5, 6)", u => u.Delta(5, 6), c => c.Delta(5, 6), empty: true);
+            yield return Case("Gamma", u => u.Gamma(0.012m, 0.02m), c => c.Gamma(0.012m, 0.02m));
+            yield return Case("G", u => u.G(0.012m, 0.02m), c => c.G(0.012m, 0.02m));
+            // theta is annualized from the per day value in the file
+            yield return Case("Theta", u => u.Theta(-365, -219), c => c.Theta(-365, -219));
+            yield return Case("T", u => u.T(-365, -219), c => c.T(-365, -219));
+            yield return Case("Vega", u => u.Vega(6, 8), c => c.Vega(6, 8));
+            yield return Case("V", u => u.V(6, 8), c => c.V(6, 8));
+            yield return Case("Rho", u => u.Rho(2, 4), c => c.Rho(2, 4));
+            yield return Case("R", u => u.R(2, 4), c => c.R(2, 4));
+            yield return Case("ImpliedVolatility", u => u.ImpliedVolatility(0.16m, 0.18m), c => c.ImpliedVolatility(0.16m, 0.18m));
+            yield return Case("IV", u => u.IV(0.16m, 0.18m), c => c.IV(0.16m, 0.18m));
+            yield return Case("OpenInterest", u => u.OpenInterest(200, 500), c => c.OpenInterest(200, 500));
+            yield return Case("OI", u => u.OI(200, 500), c => c.OI(200, 500));
+            yield return Case("CallsOnly.Expiration.Strikes", u => u.CallsOnly().Expiration(0, 30).Strikes(-1, 1),
+                c => c.CallsOnly().Expiration(0, 30).Strikes(-1, 1));
+            yield return Case("PutsOnly.FrontMonth.Strikes", u => u.PutsOnly().FrontMonth().Strikes(-2, 0),
+                c => c.PutsOnly().FrontMonth().Strikes(-2, 0));
+            yield return Case("StandardsOnly.FrontMonth", u => u.StandardsOnly().FrontMonth(), c => c.StandardsOnly().FrontMonth());
+            yield return Case("WeeklysOnly.CallsOnly", u => u.WeeklysOnly().CallsOnly(), c => c.WeeklysOnly().CallsOnly());
+            yield return Case("Expiration.Delta.Strikes", u => u.Expiration(0, 30).Delta(0.4m, 0.6m).Strikes(-3, 3),
+                c => c.Expiration(0, 30).Delta(0.4m, 0.6m).Strikes(-3, 3));
+        }
+
+        [TestCaseSource(nameof(FilterCases))]
+        public void ChainFiltersMatchUniverseFilters(Func<OptionFilterUniverse, OptionFilterUniverse> universeFilter,
+            Func<OptionChain, OptionChain> chainFilter, bool expectEmpty)
+        {
+            // the universe selection applies the contract type filters after the user filter
+            var expected = universeFilter(CreateUniverse()).ApplyTypesFilter().AsEnumerable().Select(x => x.Symbol.Value).ToList();
+            var actual = chainFilter(CreateChain()).Select(x => x.Symbol.Value).ToList();
+
+            Assert.AreEqual(expectEmpty, expected.Count == 0);
+            CollectionAssert.AreEquivalent(expected, actual);
+        }
+
+        [Test]
+        public void ChainExposesEveryUniverseFilter()
+        {
+            // Universe filters the chain deliberately doesn't mirror: they manage the universe selection itself
+            var excluded = new HashSet<string>
+            {
+                "Contracts", "Refresh", "IncludeWeeklys", "OnlyApplyFilterAtMarketOpen",
+                // Strategy filters are added to the chain separately
+                "NakedCall", "NakedPut", "CallSpread", "PutSpread", "CallCalendarSpread", "PutCalendarSpread", "Strangle", "Straddle",
+                "ProtectiveCollar", "Conversion", "CallButterfly", "PutButterfly", "IronButterfly", "IronCondor", "BoxSpread", "JellyRoll",
+                "CallLadder", "PutLadder",
+            };
+
+            var universeType = typeof(BaseOptionFilterUniverse<,>);
+            var chainMethods = typeof(OptionChain).GetMethods(BindingFlags.Public | BindingFlags.Instance);
+            var universeFilters = universeType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                .Where(x => x.ReturnType.IsGenericParameter && !excluded.Contains(x.Name))
+                .ToList();
+            var missing = new List<string>();
+            foreach (var universeFilter in universeFilters)
+            {
+                var parameters = universeFilter.GetParameters().Select(x => (x.ParameterType, x.HasDefaultValue, x.DefaultValue));
+                var chainFilter = chainMethods.FirstOrDefault(x => x.Name == universeFilter.Name && x.ReturnType == typeof(OptionChain)
+                    && x.GetParameters().Select(p => (p.ParameterType, p.HasDefaultValue, p.DefaultValue)).SequenceEqual(parameters));
+                if (chainFilter == null)
+                {
+                    missing.Add(universeFilter.ToString());
+                }
+            }
+
+            Assert.IsEmpty(missing, "OptionChain is missing universe filters, add them to OptionChain and IOptionContractFilters: "
+                + string.Join(", ", missing));
+            // The shared interface must declare every filter too, so both implementations stay in sync at compile time
+            Assert.AreEqual(typeof(IOptionContractFilters<>).GetMethods().Length, universeFilters.Count);
+        }
+
+        [Test]
+        public void FilteredChainIsANewChainSharingTheSourceProperties()
+        {
+            var chain = CreateChain();
+            var count = chain.Count;
+
+            var filtered = chain.CallsOnly().FrontMonth();
+
+            Assert.AreNotSame(chain, filtered);
+            Assert.AreEqual(count, chain.Count);
+            Assert.AreEqual(Strikes.Length, filtered.Count);
+            Assert.IsTrue(filtered.All(x => x.Right == OptionRight.Call && x.Expiry == Expiries[0]));
+            Assert.IsTrue(filtered.ContainsKey(filtered.First().Symbol));
+            Assert.AreEqual(chain.Symbol, filtered.Symbol);
+            Assert.AreEqual(chain.Time, filtered.Time);
+            Assert.AreSame(chain.Underlying, filtered.Underlying);
+        }
+
+        [Test]
+        public void UnderlyingIsTakenFromTheContractsData()
+        {
+            var chain = CreateChain();
+
+            Assert.AreEqual(UnderlyingPrice, chain.Underlying.Price);
+        }
+
+        [Test]
+        public void FiltersOnAnEmptyChainReturnAnEmptyChain()
+        {
+            var chain = new OptionChain(Canonical, Date);
+
+            foreach (var testCase in FilterCases())
+            {
+                var filter = (Func<OptionChain, OptionChain>)testCase.Arguments[1];
+                Assert.AreEqual(0, filter(chain).Count, testCase.TestName);
+            }
+        }
+
+        [Test]
+        public void StrikesFilterIsSkippedWithoutUnderlyingPrice()
+        {
+            var contracts = _data.Select(x => new OptionUniverse(x) { Underlying = null }).ToList();
+            var chain = new OptionChain(Canonical, Date, contracts, _symbolProperties);
+
+            Assert.AreEqual(0, chain.Underlying.Price);
+            Assert.AreEqual(chain.Count, chain.Strikes(0, 0).Count);
+        }
+
+        // Before February 2015 equity options expired on Saturdays, the day after their last trading date.
+        // Days to expiration are counted on the last trading date, so 2012-02-18 is 0 days out on Friday 2012-02-17,
+        // and the Saturday after Good Friday 2012-04-06 is 0 days out on Thursday 2012-04-05
+        [TestCase("2012-02-17", 0, 0, "2012-02-18")]
+        [TestCase("2012-02-17", 1, 40, "2012-03-17")]
+        [TestCase("2012-04-05", 0, 0, "2012-04-07")]
+        [TestCase("2012-04-05", 1, 60, "2012-05-19")]
+        public void ExpirationFilterCountsSaturdayExpiriesOnTheirLastTradingDate(string date, int minDays, int maxDays, string expectedExpiry)
+        {
+            var (data, underlying) = CreateSaturdayExpiriesData(date);
+            var expected = DateTime.ParseExact(expectedExpiry, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+            var universe = CreateUniverse(data, underlying, underlying.Time).Expiration(minDays, maxDays).ToList();
+            var chain = new OptionChain(Canonical, underlying.Time, data, _symbolProperties).Expiration(minDays, maxDays).ToList();
+
+            Assert.AreEqual(2 * Strikes.Length, universe.Count);
+            Assert.IsTrue(universe.All(x => x.ID.Date == expected));
+            CollectionAssert.AreEquivalent(universe.Select(x => x.Symbol.Value), chain.Select(x => x.Symbol.Value));
+        }
+
+        [TestCase("2012-02-17", 0, "2012-02-18")]
+        [TestCase("2012-02-17", 1, "2012-03-17")]
+        [TestCase("2012-04-05", 0, "2012-04-07")]
+        [TestCase("2012-04-05", 1, "2012-05-19")]
+        public void StrategyFiltersCountSaturdayExpiriesOnTheirLastTradingDate(string date, int minDaysTillExpiry, string expectedExpiry)
+        {
+            var (data, underlying) = CreateSaturdayExpiriesData(date);
+            var expected = DateTime.ParseExact(expectedExpiry, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+            var selected = CreateUniverse(data, underlying, underlying.Time).NakedCall(minDaysTillExpiry, 0).ToList();
+
+            Assert.AreEqual(1, selected.Count);
+            Assert.AreEqual(expected, selected[0].ID.Date);
+            Assert.AreEqual(100m, selected[0].ID.StrikePrice);
+        }
+
+        [Test]
+        public void FiltersAreAvailableFromPython()
+        {
+            var chain = CreateChain();
+            var expectedFiltered = chain.CallsOnly().Expiration(0, 30).Strikes(-1, 1).Select(x => x.Symbol).ToList();
+            var expectedWhere = chain.Where(x => x.Right == OptionRight.Put && x.Strike > 100).Select(x => x.Symbol).ToList();
+            Assert.IsNotEmpty(expectedFiltered);
+            Assert.IsNotEmpty(expectedWhere);
+
+            using (Py.GIL())
+            {
+                using var module = PyModule.FromString(nameof(OptionChainTests), @"
+from AlgorithmImports import *
+
+def filter_chain(chain):
+    return chain.calls_only().expiration(0, 30).strikes(-1, 1)
+
+def where_chain(chain):
+    return chain.where(lambda contract: contract.right == OptionRight.PUT and contract.strike > 100)
+");
+                using var pyChain = chain.ToPython();
+
+                using var filtered = module.GetAttr("filter_chain").Invoke(pyChain);
+                CollectionAssert.AreEqual(expectedFiltered, filtered.As<OptionChain>().Select(x => x.Symbol).ToList());
+
+                using var where = module.GetAttr("where_chain").Invoke(pyChain);
+                CollectionAssert.AreEqual(expectedWhere, where.As<OptionChain>().Select(x => x.Symbol).ToList());
+            }
+        }
+
+        private static TestCaseData Case(string name, Func<OptionFilterUniverse, OptionFilterUniverse> universeFilter,
+            Func<OptionChain, OptionChain> chainFilter, bool empty = false)
+        {
+            return new TestCaseData(universeFilter, chainFilter, empty).SetName("{m}(" + name + ")");
+        }
+
+        private OptionFilterUniverse CreateUniverse(List<OptionUniverse> data = null, BaseData underlying = null, DateTime? date = null)
+        {
+            data ??= _data;
+            underlying ??= _underlying;
+            var universe = new OptionFilterUniverse(_option, data, underlying);
+            universe.Refresh(data, underlying, date ?? Date);
+            return universe;
+        }
+
+        private OptionChain CreateChain()
+        {
+            return new OptionChain(Canonical, Date, _data, _symbolProperties);
+        }
+
+        private (List<OptionUniverse>, BaseData) CreateSaturdayExpiriesData(string date)
+        {
+            var expiries = new[] { new DateTime(2012, 2, 18), new DateTime(2012, 3, 17), new DateTime(2012, 4, 7), new DateTime(2012, 5, 19) };
+            return CreateUniverseData(DateTime.ParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture), 100m, expiries, Strikes);
+        }
+
+        private static Option CreateOption()
+        {
+            var exchangeHours = MarketHoursDatabase.FromDataFolder().GetExchangeHours(Canonical.ID.Market, Canonical, Canonical.SecurityType);
+            return new Option(
+                exchangeHours,
+                new SubscriptionDataConfig(typeof(TradeBar), Canonical, Resolution.Minute, TimeZones.NewYork, TimeZones.NewYork, true, false, false),
+                new Cash(Currencies.USD, 0, 1m),
+                new OptionSymbolProperties(SymbolProperties.GetDefault(Currencies.USD)),
+                ErrorCurrencyConverter.Instance,
+                RegisteredSecurityDataTypesProvider.Null);
+        }
+
+        /// <summary>
+        /// Creates option universe data for every expiry/strike/right combination, with synthetic but monotonic
+        /// greeks, implied volatility and open interest so every range filter has a distinct answer
+        /// </summary>
+        private static (List<OptionUniverse>, BaseData) CreateUniverseData(DateTime date, decimal spot, DateTime[] expiries, decimal[] strikes)
+        {
+            var csv = new StringBuilder();
+            csv.AppendLine("#expiry,strike,right,open,high,low,close,volume,open_interest,implied_volatility,delta,gamma,vega,theta,rho");
+            csv.AppendLine(Invariant($",,,{spot},{spot},{spot},{spot},1000,,,,,,,"));
+            var i = 0;
+            foreach (var expiry in expiries)
+            {
+                foreach (var strike in strikes)
+                {
+                    foreach (var right in new[] { "C", "P" })
+                    {
+                        var callDelta = Math.Clamp(0.5m + (spot - strike) / 20m, 0.05m, 0.95m);
+                        var delta = right == "C" ? callDelta : callDelta - 1;
+                        var price = 1 + i;
+                        csv.AppendLine(Invariant($"{expiry:yyyyMMdd},{strike},{right},{price},{price},{price},{price},{i},{100 * (i + 1)},{0.15m + 0.01m * i},{delta},{0.01m + 0.001m * i},{5 + i},{-(0.5m + 0.1m * i)},{1 + i}"));
+                        i++;
+                    }
+                }
+            }
+
+            var config = new SubscriptionDataConfig(typeof(OptionUniverse), Canonical, Resolution.Daily, TimeZones.NewYork, TimeZones.NewYork, true, true, false);
+            var data = new List<OptionUniverse>();
+            BaseData underlying = null;
+            var factory = new OptionUniverse();
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv.ToString()));
+            using var reader = new StreamReader(stream);
+            while (!reader.EndOfStream)
+            {
+                var line = (OptionUniverse)factory.Reader(config, reader, date, false);
+                if (line == null)
+                {
+                    continue;
+                }
+                if (line.Symbol.HasUnderlying)
+                {
+                    // the underlying row comes first in the file and is attached to each contract, like the universe collection does
+                    line.Underlying = underlying;
+                    data.Add(line);
+                }
+                else
+                {
+                    underlying = line;
+                }
+            }
+
+            return (data, underlying);
+        }
+    }
+}

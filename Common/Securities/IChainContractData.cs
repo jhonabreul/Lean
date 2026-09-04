@@ -11,22 +11,21 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
 */
 
-using System.Collections.Generic;
+using QuantConnect.Data;
 
 namespace QuantConnect.Securities
 {
     /// <summary>
-    /// Represents derivative symbols universe used in filtering.
+    /// The minimal contract data the contract filter universes work with,
+    /// implemented by both universe selection data and chain contracts
     /// </summary>
-    public interface IDerivativeSecurityFilterUniverse<T> : IEnumerable<T>
-        where T : IChainContractData
+    public interface IChainContractData : ISymbolProvider
     {
         /// <summary>
-        /// The number of contracts in the universe
+        /// The security identifier of the contract
         /// </summary>
-        int Count { get; }
+        SecurityIdentifier ID { get; }
     }
 }

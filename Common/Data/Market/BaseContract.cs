@@ -14,6 +14,7 @@
 */
 
 using QuantConnect.Python;
+using QuantConnect.Securities;
 using System;
 
 namespace QuantConnect.Data.Market
@@ -21,7 +22,7 @@ namespace QuantConnect.Data.Market
     /// <summary>
     /// Defines a base for a single contract, like an option or future contract
     /// </summary>
-    public abstract class BaseContract : ISymbolProvider
+    public abstract class BaseContract : IChainContractData
     {
         /// <summary>
         /// Gets the contract's symbol

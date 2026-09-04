@@ -181,6 +181,33 @@ namespace QuantConnect.Data.Market
         }
 
         /// <summary>
+        /// Initializes a new instance of the <see cref="BaseChain{T, TContractsCollection}"/> class as a copy of the specified chain
+        /// containing only the given subset of its contracts. The underlying, ticks, trade bars and quote bars are shared with the source chain
+        /// </summary>
+        /// <param name="other">The chain to copy</param>
+        /// <param name="contracts">The contracts to keep</param>
+        protected BaseChain(BaseChain<T, TContractsCollection> other, IEnumerable<T> contracts)
+            : this(other.DataType, other._flatten)
+        {
+            Symbol = other.Symbol;
+            Time = other.Time;
+            Value = other.Value;
+            Underlying = other.Underlying;
+            Ticks = other.Ticks;
+            QuoteBars = other.QuoteBars;
+            TradeBars = other.TradeBars;
+            FilteredContracts = other.FilteredContracts;
+            Contracts = new();
+#pragma warning disable 0618 // DataDictionary.Time is deprecated, ignore until removed entirely
+            Contracts.Time = other.Contracts.Time;
+#pragma warning restore 0618
+            foreach (var contract in contracts)
+            {
+                Contracts[contract.Symbol] = contract;
+            }
+        }
+
+        /// <summary>
         /// Gets the auxiliary data with the specified type and symbol
         /// </summary>
         /// <typeparam name="TAux">The type of auxiliary data</typeparam>
