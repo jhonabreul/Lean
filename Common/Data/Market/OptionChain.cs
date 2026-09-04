@@ -364,13 +364,233 @@ namespace QuantConnect.Data.Market
             return new OptionChain(this, Contracts.Values.Where(predicate.SafeAs<Func<OptionContract, bool>>()));
         }
 
+        #endregion
+
+        #region Strategy filters
+
+        /// <summary>
+        /// Selects the single call contract with the closest match to the criteria given, for a naked, covered or protective call. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.NakedCall"/>
+        /// </summary>
+        /// <param name="minDaysTillExpiry">The minimum days till expiry from the current time, closest expiry will be selected</param>
+        /// <param name="strikeFromAtm">The desired strike price distance from the current underlying price</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain NakedCall(int minDaysTillExpiry = 30, decimal strikeFromAtm = 0)
+        {
+            return Filter(universe => universe.NakedCall(minDaysTillExpiry, strikeFromAtm), requiresUnderlyingPrice: true);
+        }
+
+        /// <summary>
+        /// Selects the single put contract with the closest match to the criteria given, for a naked, covered or protective put. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.NakedPut"/>
+        /// </summary>
+        /// <param name="minDaysTillExpiry">The minimum days till expiry from the current time, closest expiry will be selected</param>
+        /// <param name="strikeFromAtm">The desired strike price distance from the current underlying price</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain NakedPut(int minDaysTillExpiry = 30, decimal strikeFromAtm = 0)
+        {
+            return Filter(universe => universe.NakedPut(minDaysTillExpiry, strikeFromAtm), requiresUnderlyingPrice: true);
+        }
+
+        /// <summary>
+        /// Selects the 2 call contracts with the same expiry and different strikes closest to the criteria given, for a bull or bear call spread. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.CallSpread"/>
+        /// </summary>
+        /// <param name="minDaysTillExpiry">The minimum days till expiry from the current time, closest expiry will be selected</param>
+        /// <param name="higherStrikeFromAtm">The desired strike price distance from the current underlying price of the higher strike price</param>
+        /// <param name="lowerStrikeFromAtm">The desired strike price distance from the current underlying price of the lower strike price</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain CallSpread(int minDaysTillExpiry = 30, decimal higherStrikeFromAtm = 5, decimal? lowerStrikeFromAtm = null)
+        {
+            return Filter(universe => universe.CallSpread(minDaysTillExpiry, higherStrikeFromAtm, lowerStrikeFromAtm), requiresUnderlyingPrice: true);
+        }
+
+        /// <summary>
+        /// Selects the 2 put contracts with the same expiry and different strikes closest to the criteria given, for a bull or bear put spread. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.PutSpread"/>
+        /// </summary>
+        /// <param name="minDaysTillExpiry">The minimum days till expiry from the current time, closest expiry will be selected</param>
+        /// <param name="higherStrikeFromAtm">The desired strike price distance from the current underlying price of the higher strike price</param>
+        /// <param name="lowerStrikeFromAtm">The desired strike price distance from the current underlying price of the lower strike price</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain PutSpread(int minDaysTillExpiry = 30, decimal higherStrikeFromAtm = 5, decimal? lowerStrikeFromAtm = null)
+        {
+            return Filter(universe => universe.PutSpread(minDaysTillExpiry, higherStrikeFromAtm, lowerStrikeFromAtm), requiresUnderlyingPrice: true);
+        }
+
+        /// <summary>
+        /// Selects the 2 call contracts with the same strike and different expiries closest to the criteria given, for a call calendar spread. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.CallCalendarSpread"/>
+        /// </summary>
+        /// <param name="strikeFromAtm">The desired strike price distance from the current underlying price</param>
+        /// <param name="minNearDaysTillExpiry">The minimum days till expiry of the closer contract from the current time, closest expiry will be selected</param>
+        /// <param name="minFarDaysTillExpiry">The minimum days till expiry of the further contract from the current time, closest expiry will be selected</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain CallCalendarSpread(decimal strikeFromAtm = 0, int minNearDaysTillExpiry = 30, int minFarDaysTillExpiry = 60)
+        {
+            return Filter(universe => universe.CallCalendarSpread(strikeFromAtm, minNearDaysTillExpiry, minFarDaysTillExpiry), requiresUnderlyingPrice: true);
+        }
+
+        /// <summary>
+        /// Selects the 2 put contracts with the same strike and different expiries closest to the criteria given, for a put calendar spread. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.PutCalendarSpread"/>
+        /// </summary>
+        /// <param name="strikeFromAtm">The desired strike price distance from the current underlying price</param>
+        /// <param name="minNearDaysTillExpiry">The minimum days till expiry of the closer contract from the current time, closest expiry will be selected</param>
+        /// <param name="minFarDaysTillExpiry">The minimum days till expiry of the further contract from the current time, closest expiry will be selected</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain PutCalendarSpread(decimal strikeFromAtm = 0, int minNearDaysTillExpiry = 30, int minFarDaysTillExpiry = 60)
+        {
+            return Filter(universe => universe.PutCalendarSpread(strikeFromAtm, minNearDaysTillExpiry, minFarDaysTillExpiry), requiresUnderlyingPrice: true);
+        }
+
+        /// <summary>
+        /// Selects an OTM call and an OTM put with the same expiry closest to the criteria given, for a strangle. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.Strangle"/>
+        /// </summary>
+        /// <param name="minDaysTillExpiry">The minimum days till expiry from the current time, closest expiry will be selected</param>
+        /// <param name="callStrikeFromAtm">The desired strike price distance from the current underlying price of the OTM call, must be positive</param>
+        /// <param name="putStrikeFromAtm">The desired strike price distance from the current underlying price of the OTM put, must be negative</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain Strangle(int minDaysTillExpiry = 30, decimal callStrikeFromAtm = 5, decimal putStrikeFromAtm = -5)
+        {
+            return Filter(universe => universe.Strangle(minDaysTillExpiry, callStrikeFromAtm, putStrikeFromAtm), requiresUnderlyingPrice: true);
+        }
+
+        /// <summary>
+        /// Selects the ATM call and the ATM put with the same expiry closest to the criteria given, for a straddle. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.Straddle"/>
+        /// </summary>
+        /// <param name="minDaysTillExpiry">The minimum days till expiry from the current time, closest expiry will be selected</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain Straddle(int minDaysTillExpiry = 30)
+        {
+            return Filter(universe => universe.Straddle(minDaysTillExpiry), requiresUnderlyingPrice: true);
+        }
+
+        /// <summary>
+        /// Selects a call and a put with the same expiry and a lower put strike closest to the criteria given, for a protective collar. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.ProtectiveCollar"/>
+        /// </summary>
+        /// <param name="minDaysTillExpiry">The minimum days till expiry from the current time, closest expiry will be selected</param>
+        /// <param name="callStrikeFromAtm">The desired strike price distance from the current underlying price of the call</param>
+        /// <param name="putStrikeFromAtm">The desired strike price distance from the current underlying price of the put</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain ProtectiveCollar(int minDaysTillExpiry = 30, decimal callStrikeFromAtm = 5, decimal putStrikeFromAtm = -5)
+        {
+            return Filter(universe => universe.ProtectiveCollar(minDaysTillExpiry, callStrikeFromAtm, putStrikeFromAtm), requiresUnderlyingPrice: true);
+        }
+
+        /// <summary>
+        /// Selects a call and a put with the same expiry and strike closest to the criteria given, for a conversion or reverse conversion. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.Conversion"/>
+        /// </summary>
+        /// <param name="minDaysTillExpiry">The minimum days till expiry from the current time, closest expiry will be selected</param>
+        /// <param name="strikeFromAtm">The desired strike price distance from the current underlying price</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain Conversion(int minDaysTillExpiry = 30, decimal strikeFromAtm = 5)
+        {
+            return Filter(universe => universe.Conversion(minDaysTillExpiry, strikeFromAtm), requiresUnderlyingPrice: true);
+        }
+
+        /// <summary>
+        /// Selects an ITM, an ATM and an OTM call with the same expiry and equal strike distance closest to the criteria given, for a call butterfly. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.CallButterfly"/>
+        /// </summary>
+        /// <param name="minDaysTillExpiry">The minimum days till expiry from the current time, closest expiry will be selected</param>
+        /// <param name="strikeSpread">The desired strike price distance of the ITM and OTM calls from the current underlying price</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain CallButterfly(int minDaysTillExpiry = 30, decimal strikeSpread = 5)
+        {
+            return Filter(universe => universe.CallButterfly(minDaysTillExpiry, strikeSpread), requiresUnderlyingPrice: true);
+        }
+
+        /// <summary>
+        /// Selects an ITM, an ATM and an OTM put with the same expiry and equal strike distance closest to the criteria given, for a put butterfly. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.PutButterfly"/>
+        /// </summary>
+        /// <param name="minDaysTillExpiry">The minimum days till expiry from the current time, closest expiry will be selected</param>
+        /// <param name="strikeSpread">The desired strike price distance of the ITM and OTM puts from the current underlying price</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain PutButterfly(int minDaysTillExpiry = 30, decimal strikeSpread = 5)
+        {
+            return Filter(universe => universe.PutButterfly(minDaysTillExpiry, strikeSpread), requiresUnderlyingPrice: true);
+        }
+
+        /// <summary>
+        /// Selects an OTM call, an ATM call, an ATM put and an OTM put with the same expiry and equal strike distance closest to the criteria given, for an iron butterfly. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.IronButterfly"/>
+        /// </summary>
+        /// <param name="minDaysTillExpiry">The minimum days till expiry from the current time, closest expiry will be selected</param>
+        /// <param name="strikeSpread">The desired strike price distance of the OTM call and the OTM put from the current underlying price</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain IronButterfly(int minDaysTillExpiry = 30, decimal strikeSpread = 5)
+        {
+            return Filter(universe => universe.IronButterfly(minDaysTillExpiry, strikeSpread), requiresUnderlyingPrice: true);
+        }
+
+        /// <summary>
+        /// Selects a far OTM call, a near OTM call, a near OTM put and a far OTM put with the same expiry closest to the criteria given, for an iron condor. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.IronCondor"/>
+        /// </summary>
+        /// <param name="minDaysTillExpiry">The minimum days till expiry from the current time, closest expiry will be selected</param>
+        /// <param name="nearStrikeSpread">The desired strike price distance of the near call and near put from the current underlying price</param>
+        /// <param name="farStrikeSpread">The desired strike price distance of the far call and far put from the current underlying price</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain IronCondor(int minDaysTillExpiry = 30, decimal nearStrikeSpread = 5, decimal farStrikeSpread = 10)
+        {
+            return Filter(universe => universe.IronCondor(minDaysTillExpiry, nearStrikeSpread, farStrikeSpread), requiresUnderlyingPrice: true);
+        }
+
+        /// <summary>
+        /// Selects an OTM call, an ITM call, an OTM put and an ITM put with the same expiry closest to the criteria given, for a box spread. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.BoxSpread"/>
+        /// </summary>
+        /// <param name="minDaysTillExpiry">The minimum days till expiry from the current time, closest expiry will be selected</param>
+        /// <param name="strikeSpread">The desired strike price distance of the OTM call and the OTM put from the current underlying price</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain BoxSpread(int minDaysTillExpiry = 30, decimal strikeSpread = 5)
+        {
+            return Filter(universe => universe.BoxSpread(minDaysTillExpiry, strikeSpread), requiresUnderlyingPrice: true);
+        }
+
+        /// <summary>
+        /// Selects 2 calls and 2 puts with the same strike and 2 expiries closest to the criteria given, for a jelly roll. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.JellyRoll"/>
+        /// </summary>
+        /// <param name="strikeFromAtm">The desired strike price distance from the current underlying price</param>
+        /// <param name="minNearDaysTillExpiry">The minimum days till expiry of the closer contract from the current time, closest expiry will be selected</param>
+        /// <param name="minFarDaysTillExpiry">The minimum days till expiry of the further contract from the current time, closest expiry will be selected</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain JellyRoll(decimal strikeFromAtm = 0, int minNearDaysTillExpiry = 30, int minFarDaysTillExpiry = 60)
+        {
+            return Filter(universe => universe.JellyRoll(strikeFromAtm, minNearDaysTillExpiry, minFarDaysTillExpiry), requiresUnderlyingPrice: true);
+        }
+
+        /// <summary>
+        /// Selects 3 calls with the same expiry and different strikes closest to the criteria given, for a bull or bear call ladder. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.CallLadder"/>
+        /// </summary>
+        /// <param name="minDaysTillExpiry">The minimum days till expiry from the current time, closest expiry will be selected</param>
+        /// <param name="higherStrikeFromAtm">The desired strike price distance from the current underlying price of the higher strike price</param>
+        /// <param name="middleStrikeFromAtm">The desired strike price distance from the current underlying price of the middle strike price</param>
+        /// <param name="lowerStrikeFromAtm">The desired strike price distance from the current underlying price of the lower strike price</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain CallLadder(int minDaysTillExpiry, decimal higherStrikeFromAtm, decimal middleStrikeFromAtm, decimal lowerStrikeFromAtm)
+        {
+            return Filter(universe => universe.CallLadder(minDaysTillExpiry, higherStrikeFromAtm, middleStrikeFromAtm, lowerStrikeFromAtm), requiresUnderlyingPrice: true);
+        }
+
+        /// <summary>
+        /// Selects 3 puts with the same expiry and different strikes closest to the criteria given, for a bull or bear put ladder. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.PutLadder"/>
+        /// </summary>
+        /// <param name="minDaysTillExpiry">The minimum days till expiry from the current time, closest expiry will be selected</param>
+        /// <param name="higherStrikeFromAtm">The desired strike price distance from the current underlying price of the higher strike price</param>
+        /// <param name="middleStrikeFromAtm">The desired strike price distance from the current underlying price of the middle strike price</param>
+        /// <param name="lowerStrikeFromAtm">The desired strike price distance from the current underlying price of the lower strike price</param>
+        /// <returns>A new chain with the selected contracts, empty if there is no match</returns>
+        public OptionChain PutLadder(int minDaysTillExpiry, decimal higherStrikeFromAtm, decimal middleStrikeFromAtm, decimal lowerStrikeFromAtm)
+        {
+            return Filter(universe => universe.PutLadder(minDaysTillExpiry, higherStrikeFromAtm, middleStrikeFromAtm, lowerStrikeFromAtm), requiresUnderlyingPrice: true);
+        }
+
         /// <summary>
         /// Applies the given universe filter to the contracts of this chain and returns the result as a new chain
         /// </summary>
-        private OptionChain Filter(Func<OptionChainFilterUniverse, OptionChainFilterUniverse> filter)
+        /// <param name="filter">The universe filter to apply</param>
+        /// <param name="requiresUnderlyingPrice">True for filters selecting strikes relative to the underlying price, which select nothing without it</param>
+        private OptionChain Filter(Func<OptionChainFilterUniverse, OptionChainFilterUniverse> filter, bool requiresUnderlyingPrice = false)
         {
+            var universe = new OptionChainFilterUniverse(this);
+            if (requiresUnderlyingPrice && universe.Underlying == null)
+            {
+                return new OptionChain(this, Enumerable.Empty<OptionContract>());
+            }
             // the type filters (standards/weeklys) are only applied on demand, like the universe selection does after the user filter
-            return new OptionChain(this, filter(new OptionChainFilterUniverse(this)).ApplyTypesFilter());
+            return new OptionChain(this, filter(universe).ApplyTypesFilter());
         }
 
         #endregion

@@ -93,6 +93,26 @@ namespace QuantConnect.Tests.Common.Data.Market
             yield return Case("WeeklysOnly.CallsOnly", u => u.WeeklysOnly().CallsOnly(), c => c.WeeklysOnly().CallsOnly());
             yield return Case("Expiration.Delta.Strikes", u => u.Expiration(0, 30).Delta(0.4m, 0.6m).Strikes(-3, 3),
                 c => c.Expiration(0, 30).Delta(0.4m, 0.6m).Strikes(-3, 3));
+            yield return Case("NakedCall", u => u.NakedCall(10, 0), c => c.NakedCall(10, 0));
+            yield return Case("NakedPut", u => u.NakedPut(10, -5), c => c.NakedPut(10, -5));
+            yield return Case("NakedCall(1000)", u => u.NakedCall(1000, 0), c => c.NakedCall(1000, 0), empty: true);
+            yield return Case("CallSpread", u => u.CallSpread(10, 5), c => c.CallSpread(10, 5));
+            yield return Case("PutSpread", u => u.PutSpread(10, 5, -5), c => c.PutSpread(10, 5, -5));
+            yield return Case("CallCalendarSpread", u => u.CallCalendarSpread(0, 10, 40), c => c.CallCalendarSpread(0, 10, 40));
+            yield return Case("PutCalendarSpread", u => u.PutCalendarSpread(0, 10, 40), c => c.PutCalendarSpread(0, 10, 40));
+            yield return Case("Strangle", u => u.Strangle(10, 5, -5), c => c.Strangle(10, 5, -5));
+            yield return Case("Straddle", u => u.Straddle(10), c => c.Straddle(10));
+            yield return Case("ProtectiveCollar", u => u.ProtectiveCollar(10, 5, -5), c => c.ProtectiveCollar(10, 5, -5));
+            yield return Case("Conversion", u => u.Conversion(10, 5), c => c.Conversion(10, 5));
+            yield return Case("CallButterfly", u => u.CallButterfly(10, 5), c => c.CallButterfly(10, 5));
+            yield return Case("PutButterfly", u => u.PutButterfly(10, 5), c => c.PutButterfly(10, 5));
+            yield return Case("IronButterfly", u => u.IronButterfly(10, 5), c => c.IronButterfly(10, 5));
+            yield return Case("IronCondor", u => u.IronCondor(10, 5, 10), c => c.IronCondor(10, 5, 10));
+            yield return Case("BoxSpread", u => u.BoxSpread(10, 5), c => c.BoxSpread(10, 5));
+            yield return Case("JellyRoll", u => u.JellyRoll(0, 10, 40), c => c.JellyRoll(0, 10, 40));
+            yield return Case("CallLadder", u => u.CallLadder(10, 10, 5, -5), c => c.CallLadder(10, 10, 5, -5));
+            yield return Case("PutLadder", u => u.PutLadder(10, 10, 5, -5), c => c.PutLadder(10, 10, 5, -5));
+            yield return Case("StandardsOnly.IronCondor", u => u.StandardsOnly().IronCondor(10, 5, 10), c => c.StandardsOnly().IronCondor(10, 5, 10));
         }
 
         [TestCaseSource(nameof(FilterCases))]
@@ -218,6 +238,59 @@ def where_chain(chain):
 
                 using var where = module.GetAttr("where_chain").Invoke(pyChain);
                 CollectionAssert.AreEqual(expectedWhere, where.As<OptionChain>().Select(x => x.Symbol).ToList());
+            }
+        }
+
+        [Test]
+        public void StrategyFiltersReturnAnEmptyChainWithoutUnderlyingPrice()
+        {
+            var contracts = _data.Select(x => new OptionUniverse(x) { Underlying = null }).ToList();
+            var chain = new OptionChain(Canonical, Date, contracts, _symbolProperties);
+
+            Assert.AreEqual(0, chain.Underlying.Price);
+            Assert.AreEqual(0, chain.Straddle(10).Count);
+            Assert.AreEqual(0, chain.IronCondor(10, 5, 10).Count);
+            Assert.AreEqual(0, chain.NakedCall(10, 0).Count);
+        }
+
+        [Test]
+        public void StrategyFiltersValidateArgumentsLikeTheUniverseFilters()
+        {
+            var chain = CreateChain();
+
+            Assert.Throws<ArgumentException>(() => chain.Strangle(10, -5, 5));
+            Assert.Throws<ArgumentException>(() => chain.CallSpread(10, 5, 10));
+            Assert.Throws<ArgumentException>(() => chain.IronCondor(10, 10, 5));
+            Assert.Throws<ArgumentException>(() => chain.CallCalendarSpread(0, 40, 10));
+        }
+
+        [Test]
+        public void StrategyFiltersAreAvailableFromPython()
+        {
+            var chain = CreateChain();
+            var expectedIronCondor = chain.IronCondor(10, 5, 10).Select(x => x.Symbol.Value).ToList();
+            var expectedNakedPut = chain.NakedPut(10, -5).Select(x => x.Symbol.Value).ToList();
+            Assert.AreEqual(4, expectedIronCondor.Count);
+            Assert.AreEqual(1, expectedNakedPut.Count);
+
+            using (Py.GIL())
+            {
+                using var module = PyModule.FromString(nameof(OptionChainTests) + "Strategies", @"
+from AlgorithmImports import *
+
+def iron_condor(chain):
+    return chain.iron_condor(10, 5, 10)
+
+def naked_put(chain):
+    return chain.naked_put(min_days_till_expiry=10, strike_from_atm=-5)
+");
+                using var pyChain = chain.ToPython();
+
+                using var ironCondor = module.GetAttr("iron_condor").Invoke(pyChain);
+                CollectionAssert.AreEquivalent(expectedIronCondor, ironCondor.As<OptionChain>().Select(x => x.Symbol.Value).ToList());
+
+                using var nakedPut = module.GetAttr("naked_put").Invoke(pyChain);
+                CollectionAssert.AreEqual(expectedNakedPut, nakedPut.As<OptionChain>().Select(x => x.Symbol.Value).ToList());
             }
         }
 
