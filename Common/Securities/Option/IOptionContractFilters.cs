@@ -144,5 +144,95 @@ namespace QuantConnect.Securities
         /// Selects the contracts with open interest in the given range. Alias for <see cref="OpenInterest"/>
         /// </summary>
         TSelf OI(long min, long max);
+
+        /// <summary>
+        /// Selects the single call contract with the closest match to the criteria given
+        /// </summary>
+        TSelf NakedCall(int minDaysTillExpiry = 30, decimal strikeFromAtm = 0);
+
+        /// <summary>
+        /// Selects the single put contract with the closest match to the criteria given
+        /// </summary>
+        TSelf NakedPut(int minDaysTillExpiry = 30, decimal strikeFromAtm = 0);
+
+        /// <summary>
+        /// Selects the 2 call contracts with the same expiry and different strikes closest to the criteria given
+        /// </summary>
+        TSelf CallSpread(int minDaysTillExpiry = 30, decimal higherStrikeFromAtm = 5, decimal? lowerStrikeFromAtm = null);
+
+        /// <summary>
+        /// Selects the 2 put contracts with the same expiry and different strikes closest to the criteria given
+        /// </summary>
+        TSelf PutSpread(int minDaysTillExpiry = 30, decimal higherStrikeFromAtm = 5, decimal? lowerStrikeFromAtm = null);
+
+        /// <summary>
+        /// Selects the 2 call contracts with the same strike and different expiries closest to the criteria given
+        /// </summary>
+        TSelf CallCalendarSpread(decimal strikeFromAtm = 0, int minNearDaysTillExpiry = 30, int minFarDaysTillExpiry = 60);
+
+        /// <summary>
+        /// Selects the 2 put contracts with the same strike and different expiries closest to the criteria given
+        /// </summary>
+        TSelf PutCalendarSpread(decimal strikeFromAtm = 0, int minNearDaysTillExpiry = 30, int minFarDaysTillExpiry = 60);
+
+        /// <summary>
+        /// Selects an OTM call and an OTM put with the same expiry closest to the criteria given
+        /// </summary>
+        TSelf Strangle(int minDaysTillExpiry = 30, decimal callStrikeFromAtm = 5, decimal putStrikeFromAtm = -5);
+
+        /// <summary>
+        /// Selects the ATM call and the ATM put with the same expiry closest to the criteria given
+        /// </summary>
+        TSelf Straddle(int minDaysTillExpiry = 30);
+
+        /// <summary>
+        /// Selects a call and a put with the same expiry and a lower put strike closest to the criteria given
+        /// </summary>
+        TSelf ProtectiveCollar(int minDaysTillExpiry = 30, decimal callStrikeFromAtm = 5, decimal putStrikeFromAtm = -5);
+
+        /// <summary>
+        /// Selects a call and a put with the same expiry and strike closest to the criteria given
+        /// </summary>
+        TSelf Conversion(int minDaysTillExpiry = 30, decimal strikeFromAtm = 5);
+
+        /// <summary>
+        /// Selects an ITM, an ATM and an OTM call with the same expiry and equal strike distance closest to the criteria given
+        /// </summary>
+        TSelf CallButterfly(int minDaysTillExpiry = 30, decimal strikeSpread = 5);
+
+        /// <summary>
+        /// Selects an ITM, an ATM and an OTM put with the same expiry and equal strike distance closest to the criteria given
+        /// </summary>
+        TSelf PutButterfly(int minDaysTillExpiry = 30, decimal strikeSpread = 5);
+
+        /// <summary>
+        /// Selects an OTM call, an ATM call, an ATM put and an OTM put with the same expiry and equal strike distance closest to the criteria given
+        /// </summary>
+        TSelf IronButterfly(int minDaysTillExpiry = 30, decimal strikeSpread = 5);
+
+        /// <summary>
+        /// Selects a far OTM call, a near OTM call, a near OTM put and a far OTM put with the same expiry closest to the criteria given
+        /// </summary>
+        TSelf IronCondor(int minDaysTillExpiry = 30, decimal nearStrikeSpread = 5, decimal farStrikeSpread = 10);
+
+        /// <summary>
+        /// Selects an OTM call, an ITM call, an OTM put and an ITM put with the same expiry closest to the criteria given
+        /// </summary>
+        TSelf BoxSpread(int minDaysTillExpiry = 30, decimal strikeSpread = 5);
+
+        /// <summary>
+        /// Selects 2 calls and 2 puts with the same strike and 2 expiries closest to the criteria given
+        /// </summary>
+        TSelf JellyRoll(decimal strikeFromAtm = 0, int minNearDaysTillExpiry = 30, int minFarDaysTillExpiry = 60);
+
+        /// <summary>
+        /// Selects 3 calls with the same expiry and different strikes closest to the criteria given
+        /// </summary>
+        TSelf CallLadder(int minDaysTillExpiry, decimal higherStrikeFromAtm, decimal middleStrikeFromAtm, decimal lowerStrikeFromAtm);
+
+        /// <summary>
+        /// Selects 3 puts with the same expiry and different strikes closest to the criteria given
+        /// </summary>
+        TSelf PutLadder(int minDaysTillExpiry, decimal higherStrikeFromAtm, decimal middleStrikeFromAtm, decimal lowerStrikeFromAtm);
     }
 }
