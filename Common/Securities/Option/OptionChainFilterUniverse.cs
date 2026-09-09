@@ -46,9 +46,36 @@ namespace QuantConnect.Securities
         /// </summary>
         /// <param name="chain">The option chain to filter</param>
         public OptionChainFilterUniverse(OptionChain chain)
-            : base(GetContracts(chain), GetUnderlying(chain), chain.ExchangeTime, GetStrikeMultiplier(chain))
+            : this(GetContracts(chain), GetUnderlying(chain), chain.ExchangeTime, chain.Symbol)
         {
-            _symbol = chain.Symbol;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="OptionChainFilterUniverse"/> class continuing another instance:
+        /// its contracts and queued filters, underlying, time, strike multiplier and exchange hours
+        /// </summary>
+        /// <param name="other">The filter universe to continue from</param>
+        public OptionChainFilterUniverse(OptionChainFilterUniverse other)
+            : base(other)
+        {
+            _symbol = other._symbol;
+            _exchangeHours = other._exchangeHours;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="OptionChainFilterUniverse"/> class without contracts
+        /// </summary>
+        /// <param name="symbol">The canonical option symbol</param>
+        /// <param name="localTime">The current local time</param>
+        public OptionChainFilterUniverse(Symbol symbol, DateTime localTime)
+            : this(new List<OptionContract>(), null, localTime, symbol)
+        {
+        }
+
+        private OptionChainFilterUniverse(List<OptionContract> contracts, BaseData underlying, DateTime localTime, Symbol symbol)
+            : base(contracts, underlying, localTime, GetStrikeMultiplier(contracts))
+        {
+            _symbol = symbol;
         }
 
         /// <summary>
@@ -74,10 +101,10 @@ namespace QuantConnect.Securities
         /// </summary>
         protected override decimal GetOpenInterest(OptionContract contract) => contract.OpenInterest;
 
-        private static IReadOnlyList<OptionContract> GetContracts(OptionChain chain)
+        private static List<OptionContract> GetContracts(OptionChain chain)
         {
-            // The dictionary caches its values as a list that is replaced, never mutated, so it is safe to share
-            return chain.Contracts.Values as IReadOnlyList<OptionContract> ?? chain.Contracts.Values.ToList();
+            // The sorted values view costs a sort per rebuild and the filters do not need the order
+            return new List<OptionContract>(chain.Contracts.UnsortedValues);
         }
 
         private static BaseData GetUnderlying(OptionChain chain)
@@ -87,9 +114,9 @@ namespace QuantConnect.Securities
             return underlying != null && underlying.Price != 0 ? underlying : null;
         }
 
-        private static decimal GetStrikeMultiplier(OptionChain chain)
+        private static decimal GetStrikeMultiplier(List<OptionContract> contracts)
         {
-            return chain.Contracts.Values.FirstOrDefault()?.SymbolProperties?.StrikeMultiplier ?? 1;
+            return contracts.Count > 0 ? contracts[0].SymbolProperties?.StrikeMultiplier ?? 1 : 1;
         }
     }
 }

@@ -96,6 +96,19 @@ namespace QuantConnect.Securities
         }
 
         /// <summary>
+        /// Constructs BaseOptionFilterUniverse over the contracts another instance has selected so far, including its queued filters
+        /// </summary>
+        /// <param name="other">The filter universe to continue from</param>
+        protected BaseOptionFilterUniverse(BaseOptionFilterUniverse<TUniverse, TData> other)
+            : base(other)
+        {
+            UnderlyingInternal = other.UnderlyingInternal;
+            _underlyingScaleFactor = other._underlyingScaleFactor;
+            _lastExchangeDate = other._lastExchangeDate;
+            _refreshUniqueStrikes = true;
+        }
+
+        /// <summary>
         /// Constructs BaseOptionFilterUniverse
         /// </summary>
         /// <param name="allData">All data for the option contracts</param>
@@ -250,15 +263,11 @@ namespace QuantConnect.Securities
             var minPrice = _uniqueStrikes[indexMinPrice];
             var maxPrice = _uniqueStrikes[indexMaxPrice];
 
-            Data = Data
-                .Where(data =>
-                    {
-                        var price = data.Symbol.ID.StrikePrice;
-                        return price >= minPrice && price <= maxPrice;
-                    }
-                ).ToList();
-
-            return (TUniverse)this;
+            return Filter(data =>
+            {
+                var price = data.Symbol.ID.StrikePrice;
+                return price >= minPrice && price <= maxPrice;
+            });
         }
 
         /// <summary>
@@ -267,7 +276,7 @@ namespace QuantConnect.Securities
         /// <returns>Universe with filter applied</returns>
         public TUniverse CallsOnly()
         {
-            return Contracts(contracts => contracts.Where(x => x.Symbol.ID.OptionRight == OptionRight.Call));
+            return Filter(x => x.Symbol.ID.OptionRight == OptionRight.Call);
         }
 
         /// <summary>
@@ -276,7 +285,7 @@ namespace QuantConnect.Securities
         /// <returns>Universe with filter applied</returns>
         public TUniverse PutsOnly()
         {
-            return Contracts(contracts => contracts.Where(x => x.Symbol.ID.OptionRight == OptionRight.Put));
+            return Filter(x => x.Symbol.ID.OptionRight == OptionRight.Put);
         }
 
         /// <summary>
@@ -1092,11 +1101,11 @@ namespace QuantConnect.Securities
         /// </summary>
         private TUniverse InRange(Func<TData, decimal> selector, decimal min, decimal max)
         {
-            return Contracts(data => data.Where(contract =>
+            return Filter(contract =>
             {
                 var value = selector(contract);
                 return value >= min && value <= max;
-            }));
+            });
         }
 
         /// <summary>
@@ -1228,7 +1237,7 @@ namespace QuantConnect.Securities
         /// <returns>Universe with filter applied</returns>
         public static OptionFilterUniverse Where(this OptionFilterUniverse universe, Func<OptionUniverse, bool> predicate)
         {
-            return universe.Contracts(data => data.Where(predicate));
+            return universe.Filter(predicate);
         }
 
         /// <summary>

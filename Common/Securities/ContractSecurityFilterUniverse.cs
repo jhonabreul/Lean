@@ -34,6 +34,8 @@ namespace QuantConnect.Securities
         private bool _alreadyAppliedTypeFilters;
 
         private IReadOnlyList<TData> _data;
+        // The per-contract filters queued since the data was last read, applied together in one pass
+        private Func<TData, bool> _pendingFilter;
 
         /// <summary>
         /// Defines listed contract types with Flags attribute
@@ -71,26 +73,38 @@ namespace QuantConnect.Securities
         /// <summary>
         /// The number of contracts in the universe
         /// </summary>
-        public int Count => _data.Count;
+        public int Count => Data.Count;
 
         /// <summary>
         /// All data in this filter
         /// Marked internal for use by extensions
         /// </summary>
         /// <remarks>
-        /// Setting it will also set AllSymbols
+        /// Reading it applies the filters queued by <see cref="Filter"/>. Setting it will also set AllSymbols
         /// </remarks>
         internal IReadOnlyList<TData> Data
         {
             get
             {
+                if (_pendingFilter != null)
+                {
+                    var filter = _pendingFilter;
+                    _pendingFilter = null;
+                    _data = _data.Where(filter).ToList();
+                }
                 return _data;
             }
             set
             {
                 _data = value;
+                _pendingFilter = null;
             }
         }
+
+        /// <summary>
+        /// Whether per-contract filters are queued, waiting for the data to be read
+        /// </summary>
+        internal bool HasPendingFilters => _pendingFilter != null;
 
         /// <summary>
         /// All Symbols in this filter
@@ -103,13 +117,14 @@ namespace QuantConnect.Securities
         {
             get
             {
-                return _data.Select(x => x.Symbol);
+                return Data.Select(x => x.Symbol);
             }
             set
             {
                 // We create a "fake" data instance for each symbol that is not in the data,
                 // so we are polite to the user and keep backwards compatibility
-                _data = value.Select(symbol => _data.FirstOrDefault(x => x.Symbol == symbol) ?? CreateDataInstance(symbol)).ToList();
+                var data = Data;
+                Data = value.Select(symbol => data.FirstOrDefault(x => x.Symbol == symbol) ?? CreateDataInstance(symbol)).ToList();
             }
         }
 
@@ -118,6 +133,19 @@ namespace QuantConnect.Securities
         /// </summary>
         protected ContractSecurityFilterUniverse()
         {
+            Type = DefaultExpirationType;
+        }
+
+        /// <summary>
+        /// Constructs ContractSecurityFilterUniverse over the contracts another instance has selected so far,
+        /// including its queued filters, with the default contract types
+        /// </summary>
+        /// <param name="other">The filter universe to continue from</param>
+        protected ContractSecurityFilterUniverse(ContractSecurityFilterUniverse<T, TData> other)
+        {
+            _data = other._data;
+            _pendingFilter = other._pendingFilter;
+            LocalTime = other.LocalTime;
             Type = DefaultExpirationType;
         }
 
@@ -142,6 +170,19 @@ namespace QuantConnect.Securities
         /// </summary>
         /// <returns>A data instance for the given symbol</returns>
         protected abstract TData CreateDataInstance(Symbol symbol);
+
+        /// <summary>
+        /// Selects the contracts matching the predicate. Consecutive calls, and the filters built on this method,
+        /// are applied together in a single pass over the contracts when the data is next read
+        /// </summary>
+        /// <param name="predicate">Whether to keep a contract</param>
+        /// <returns>Universe with filter applied</returns>
+        protected internal T Filter(Func<TData, bool> predicate)
+        {
+            var pending = _pendingFilter;
+            _pendingFilter = pending == null ? predicate : data => pending(data) && predicate(data);
+            return (T)this;
+        }
 
         /// <summary>
         /// Returns universe, filtered by contract type
@@ -177,9 +218,10 @@ namespace QuantConnect.Securities
                 return res;
             };
 
-            Data = Data.Where(x =>
+            var type = Type;
+            Filter(x =>
             {
-                switch (Type)
+                switch (type)
                 {
                     case ContractExpirationType.Weekly:
                         return !memoizedIsStandardType(x);
@@ -190,7 +232,7 @@ namespace QuantConnect.Securities
                     default:
                         return false;
                 }
-            }).ToList();
+            });
 
             _alreadyAppliedTypeFilters = true;
             return (T)this;
@@ -324,11 +366,7 @@ namespace QuantConnect.Securities
             var minExpiryToDate = referenceDate + minExpiry;
             var maxExpiryToDate = referenceDate + maxExpiry;
 
-            Data = Data
-                .Where(data => data.Symbol.ID.Date.Date >= minExpiryToDate && data.Symbol.ID.Date.Date <= maxExpiryToDate)
-                .ToList();
-
-            return (T)this;
+            return Filter(data => data.Symbol.ID.Date.Date >= minExpiryToDate && data.Symbol.ID.Date.Date <= maxExpiryToDate);
         }
 
         /// <summary>

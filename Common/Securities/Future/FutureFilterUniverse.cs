@@ -83,8 +83,7 @@ namespace QuantConnect.Securities
         /// <returns><see cref="FutureFilterUniverse"/> with filter applied</returns>
         public static FutureFilterUniverse Where(this FutureFilterUniverse universe, Func<FutureUniverse, bool> predicate)
         {
-            universe.Data = universe.Data.Where(predicate).ToList();
-            return universe;
+            return universe.Filter(predicate);
         }
 
         /// <summary>
