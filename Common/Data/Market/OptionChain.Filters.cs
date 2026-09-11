@@ -136,7 +136,7 @@ namespace QuantConnect.Data.Market
         }
 
         /// <summary>
-        /// Selects the contracts expiring today. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.ZeroDte"/>
+        /// Selects the contracts expiring today. Same as <see cref="ContractSecurityFilterUniverse{T, TData}.ZeroDte"/>
         /// </summary>
         /// <returns>A new chain with the filter applied</returns>
         public OptionChain ZeroDte()
@@ -416,7 +416,7 @@ namespace QuantConnect.Data.Market
         }
 
         /// <summary>
-        /// Selects the contracts with open interest in the given range. Same as <see cref="BaseOptionFilterUniverse{TUniverse, TData}.OpenInterest"/>
+        /// Selects the contracts with open interest in the given range. Same as <see cref="ContractSecurityFilterUniverse{T, TData}.OpenInterest"/>
         /// </summary>
         /// <param name="min">The minimum open interest value</param>
         /// <param name="max">The maximum open interest value</param>
@@ -435,6 +435,17 @@ namespace QuantConnect.Data.Market
         public OptionChain OI(long min, long max)
         {
             return OpenInterest(min, max);
+        }
+
+        /// <summary>
+        /// Selects the contracts with volume in the given range. Same as <see cref="ContractSecurityFilterUniverse{T, TData}.Volume"/>
+        /// </summary>
+        /// <param name="min">The minimum volume</param>
+        /// <param name="max">The maximum volume</param>
+        /// <returns>A new chain with the filter applied</returns>
+        public OptionChain Volume(long min, long max)
+        {
+            return Filter(universe => universe.Volume(min, max));
         }
 
         /// <summary>

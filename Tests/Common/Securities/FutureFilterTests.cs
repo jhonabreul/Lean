@@ -401,6 +401,24 @@ def get_length(universe):
         }
 
         [Test]
+        public void FiltersOpenInterestVolumeAndZeroDte()
+        {
+            var time = new DateTime(2013, 10, 7);
+            var expiries = new[] { time, new DateTime(2013, 12, 20), new DateTime(2014, 3, 21), new DateTime(2014, 6, 20) };
+            // the universe rows carry open, high, low, close, volume and open interest
+            var data = expiries.Select((expiry, i) => new FutureUniverse(time, Symbol.CreateFuture("ES", Market.CME, expiry), $"1,1,1,1,{1000 * (i + 1)},{10 * (i + 1)}")).ToList();
+            FutureFilterUniverse Universe() => new(data, time);
+            static IEnumerable<DateTime> Expiries(FutureFilterUniverse universe) => universe.Select(x => x.Symbol.ID.Date);
+
+            CollectionAssert.AreEqual(new[] { expiries[0] }, Expiries(Universe().ZeroDte()));
+            CollectionAssert.AreEqual(new[] { expiries[1], expiries[2] }, Expiries(Universe().OpenInterest(20, 30)));
+            CollectionAssert.AreEqual(new[] { expiries[3] }, Expiries(Universe().OI(31, long.MaxValue)));
+            CollectionAssert.AreEqual(new[] { expiries[0], expiries[1] }, Expiries(Universe().Volume(0, 2000)));
+            CollectionAssert.AreEqual(new[] { expiries[2] }, Expiries(Universe().Volume(2500, 3500).OpenInterest(0, 100)));
+            Assert.AreEqual(0, Universe().Volume(5000, 6000).Count);
+        }
+
+        [Test]
         public void FilterTypeDoesNotBreakOnMissingExpiryFunction()
         {
             var time = new DateTime(2016, 02, 17, 13, 0, 0);

@@ -74,6 +74,11 @@ namespace QuantConnect.Securities
         /// </summary>
         protected override decimal GetOpenInterest(OptionContract contract) => contract.OpenInterest;
 
+        /// <summary>
+        /// Gets the volume of the given contract
+        /// </summary>
+        protected override decimal GetVolume(OptionContract contract) => contract.Volume;
+
         private static IReadOnlyList<OptionContract> GetContracts(OptionChain chain)
         {
             // The dictionary caches its values as a list that is replaced, never mutated, so it is safe to share
