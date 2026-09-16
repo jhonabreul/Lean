@@ -1,0 +1,190 @@
+diff --git a/Algorithm/QCAlgorithm.cs b/Algorithm/QCAlgorithm.cs
+index 37883f9e7..c09f5557f 100644
+--- a/Algorithm/QCAlgorithm.cs
++++ b/Algorithm/QCAlgorithm.cs
+@@ -3513,7 +3513,8 @@ namespace QuantConnect.Algorithm
+             foreach (var (symbol, contracts) in optionChainsData)
+             {
+                 var symbolProperties = SymbolPropertiesDatabase.GetSymbolProperties(symbol.ID.Market, symbol, symbol.SecurityType, AccountCurrency);
+-                var optionChain = new OptionChain(symbol, GetTimeInExchangeTimeZone(symbol).Date, contracts, symbolProperties, flatten);
++                var exchangeHours = MarketHoursDatabase.GetExchangeHours(symbol.ID.Market, symbol, symbol.SecurityType);
++                var optionChain = new OptionChain(symbol, UtcTime.ConvertFromUtc(exchangeHours.TimeZone).Date, contracts, symbolProperties, flatten, exchangeHours);
+                 chains.Add(symbol, optionChain);
+             }
+ 
+diff --git a/Common/Data/Market/BaseChain.cs b/Common/Data/Market/BaseChain.cs
+index c199926ef..11a990593 100644
+--- a/Common/Data/Market/BaseChain.cs
++++ b/Common/Data/Market/BaseChain.cs
+@@ -19,6 +19,7 @@ using System.Collections.Generic;
+ using System.Linq;
+ using Python.Runtime;
+ using QuantConnect.Python;
++using QuantConnect.Securities;
+ using QuantConnect.Securities.Option;
+ using QuantConnect.Util;
+ 
+@@ -70,6 +71,11 @@ namespace QuantConnect.Data.Market
+             set => _exchangeTime = value;
+         }
+ 
++        /// <summary>
++        /// The exchange hours of the contracts when known, so the filters don't look them up
++        /// </summary>
++        internal SecurityExchangeHours ExchangeHours { get; set; }
++
+         /// <summary>
+         /// Gets all ticks for every option contract in this chain, keyed by option symbol
+         /// </summary>
+@@ -183,6 +189,7 @@ namespace QuantConnect.Data.Market
+             Symbol = other.Symbol;
+             Time = other.Time;
+             _exchangeTime = other._exchangeTime;
++            ExchangeHours = other.ExchangeHours;
+             Value = other.Value;
+             Underlying = other.Underlying;
+             Ticks = other.Ticks;
+diff --git a/Common/Data/Market/OptionChain.cs b/Common/Data/Market/OptionChain.cs
+index 15f5cf888..a0702b0a6 100644
+--- a/Common/Data/Market/OptionChain.cs
++++ b/Common/Data/Market/OptionChain.cs
+@@ -49,9 +49,10 @@ namespace QuantConnect.Data.Market
+         /// <param name="symbolProperties">The option symbol properties</param>
+         /// <param name="flatten">Whether to flatten the data frame</param>
+         public OptionChain(Symbol canonicalOptionSymbol, DateTime time, IEnumerable<OptionUniverse> contracts, SymbolProperties symbolProperties,
+-            bool flatten = true)
++            bool flatten = true, SecurityExchangeHours exchangeHours = null)
+             : this(canonicalOptionSymbol, time, flatten)
+         {
++            ExchangeHours = exchangeHours;
+             var underlyingSet = false;
+             foreach (var contractData in contracts)
+             {
+@@ -62,7 +63,7 @@ namespace QuantConnect.Data.Market
+                     underlyingSet = true;
+                 }
+                 if (contractData.Symbol.ID.Date.Date < time.Date) continue;
+-                Contracts[contractData.Symbol] = OptionContract.Create(contractData, symbolProperties);
++                Contracts[contractData.Symbol] = OptionContract.Create(contractData, symbolProperties, exchangeHours);
+             }
+         }
+ 
+diff --git a/Common/Data/Market/OptionContract.cs b/Common/Data/Market/OptionContract.cs
+index cefb7e892..7b5a24150 100644
+--- a/Common/Data/Market/OptionContract.cs
++++ b/Common/Data/Market/OptionContract.cs
+@@ -29,6 +29,7 @@ namespace QuantConnect.Data.Market
+     {
+         private IOptionData _optionData = OptionPriceModelResultData.Null;
+         private readonly SymbolProperties _symbolProperties;
++        private readonly SecurityExchangeHours _exchangeHours;
+         private DateTime? _lastTradingDate;
+ 
+         /// <summary>
+@@ -126,6 +127,7 @@ namespace QuantConnect.Data.Market
+             : base(security.Symbol)
+         {
+             _symbolProperties = security.SymbolProperties;
++            _exchangeHours = (security as Security)?.Exchange.Hours;
+         }
+ 
+         /// <summary>
+@@ -133,10 +135,11 @@ namespace QuantConnect.Data.Market
+         /// </summary>
+         /// <param name="contractData">The option universe contract data to use as source for this contract</param>
+         /// <param name="symbolProperties">The contract symbol properties</param>
+-        public OptionContract(OptionUniverse contractData, SymbolProperties symbolProperties)
++        public OptionContract(OptionUniverse contractData, SymbolProperties symbolProperties, SecurityExchangeHours exchangeHours = null)
+             : base(contractData.Symbol)
+         {
+             _symbolProperties = symbolProperties;
++            _exchangeHours = exchangeHours;
+             _optionData = new OptionUniverseData(contractData);
+         }
+ 
+@@ -183,9 +186,9 @@ namespace QuantConnect.Data.Market
+         /// </summary>
+         /// <param name="contractData">The option universe contract data to use as source for this contract</param>
+         /// <param name="symbolProperties">The contract symbol properties</param>
+-        public static OptionContract Create(OptionUniverse contractData, SymbolProperties symbolProperties)
++        public static OptionContract Create(OptionUniverse contractData, SymbolProperties symbolProperties, SecurityExchangeHours exchangeHours = null)
+         {
+-            var contract = new OptionContract(contractData, symbolProperties)
++            var contract = new OptionContract(contractData, symbolProperties, exchangeHours)
+             {
+                 Time = contractData.EndTime,
+             };
+@@ -224,8 +227,15 @@ namespace QuantConnect.Data.Market
+         /// </summary>
+         private DateTime GetLastTradingDate()
+         {
++            if (Symbol.SecurityType != SecurityType.Option)
++            {
++                return Symbol.ID.Date.Date;
++            }
++
+             // equity options were dated on the Saturday after their last trading day until the OCC moved expirations to Friday in 2015
+-            return Symbol.SecurityType == SecurityType.Option ? OptionSymbol.GetLastDayOfTrading(Symbol) : Symbol.ID.Date.Date;
++            return _exchangeHours == null
++                ? OptionSymbol.GetLastDayOfTrading(Symbol)
++                : OptionSymbol.GetLastDayOfTrading(Symbol, _exchangeHours);
+         }
+ 
+         private interface IOptionData
+diff --git a/Common/Securities/Option/OptionChainFilterUniverse.cs b/Common/Securities/Option/OptionChainFilterUniverse.cs
+index 79ee28623..f0853ca04 100644
+--- a/Common/Securities/Option/OptionChainFilterUniverse.cs
++++ b/Common/Securities/Option/OptionChainFilterUniverse.cs
+@@ -49,6 +49,7 @@ namespace QuantConnect.Securities
+             : base(GetContracts(chain), GetUnderlying(chain), chain.ExchangeTime, GetStrikeMultiplier(chain))
+         {
+             _symbol = chain.Symbol;
++            _exchangeHours = chain.ExchangeHours;
+         }
+ 
+         /// <summary>
+diff --git a/Engine/DataFeeds/TimeSliceFactory.cs b/Engine/DataFeeds/TimeSliceFactory.cs
+index 153db02c5..9224448e2 100644
+--- a/Engine/DataFeeds/TimeSliceFactory.cs
++++ b/Engine/DataFeeds/TimeSliceFactory.cs
+@@ -428,7 +428,11 @@ namespace QuantConnect.Lean.Engine.DataFeeds
+             if (!optionChains.TryGetValue(canonical, out chain))
+             {
+                 // the data is already in the exchange time zone, unlike the algorithm time the chain is stamped with
+-                chain = new OptionChain(canonical, algorithmTime) { ExchangeTime = baseData.EndTime };
++                chain = new OptionChain(canonical, algorithmTime)
++                {
++                    ExchangeTime = baseData.EndTime,
++                    ExchangeHours = (security as QuantConnect.Securities.Security)?.Exchange.Hours
++                };
+                 optionChains[canonical] = chain;
+             }
+ 
+diff --git a/Tests/Common/Data/Market/OptionChainTests.cs b/Tests/Common/Data/Market/OptionChainTests.cs
+index 0a32691f5..948788dc6 100644
+--- a/Tests/Common/Data/Market/OptionChainTests.cs
++++ b/Tests/Common/Data/Market/OptionChainTests.cs
+@@ -379,6 +379,23 @@ namespace QuantConnect.Tests.Common.Data.Market
+             Assert.IsTrue(chain.All(x => x.Time.Date == lastTradingDate && x.DaysToExpiry == 0));
+         }
+ 
++        [Test]
++        public void ChainExchangeHoursReachTheFiltersAndTheContracts()
++        {
++            // 2012-02-17 is the Friday before a Saturday expiration: the walk-back runs on the hours the chain was built with
++            var date = new DateTime(2012, 2, 17);
++            var (data, _) = CreateSaturdayExpiriesData("2012-02-16");
++            var exchangeHours = CreateOption().Exchange.Hours;
++            var chain = new OptionChain(Canonical, date, data, _symbolProperties, exchangeHours: exchangeHours);
++            Assert.AreSame(exchangeHours, chain.ExchangeHours);
++
++            var zeroDte = chain.ZeroDte();
++            Assert.AreEqual(2 * Strikes.Length, zeroDte.Count);
++            Assert.IsTrue(zeroDte.All(x => x.Expiry == new DateTime(2012, 2, 18) && x.DaysToExpiry == 0));
++            Assert.AreSame(exchangeHours, zeroDte.ExchangeHours);
++            Assert.AreSame(exchangeHours, zeroDte.PutsOnly().ExchangeHours);
++        }
++
+         [Test]
+         public void FiltersAreAvailableFromPython()
+         {
