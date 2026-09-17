@@ -21,7 +21,7 @@ namespace QuantConnect.Api
     /// <summary>
     /// Class containing insights and the number of insights of the live algorithm in the request criteria
     /// </summary>
-    public class InsightResponse: RestResponse
+    public class InsightResponse: RestResponse, IPagedResponse<Insight>
     {
         /// <summary>
         /// Collection of insights
@@ -32,5 +32,7 @@ namespace QuantConnect.Api
         /// Total number of returned insights
         /// </summary>
         public int Length { get; set; }
+
+        List<Insight> IPagedResponse<Insight>.Items => Insights;
     }
 }

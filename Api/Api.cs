@@ -20,6 +20,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using Newtonsoft.Json;
+using QuantConnect.Algorithm.Framework.Alphas;
 using QuantConnect.Interfaces;
 using QuantConnect.Logging;
 using QuantConnect.Optimizer.Objectives;
@@ -44,6 +45,7 @@ namespace QuantConnect.Api
     {
         private readonly BlockingCollection<Lazy<HttpClient>> _clientPool;
         private string _dataFolder;
+        private const int MaxPageSize = 100;
 
         /// <summary>
         /// Serializer settings to use
@@ -412,13 +414,16 @@ namespace QuantConnect.Api
         /// </summary>
         /// <param name="projectId">Id of the project from which to read the orders</param>
         /// <param name="backtestId">Id of the backtest from which to read the orders</param>
-        /// <param name="start">Starting index of the orders to be fetched. Required if end > 100</param>
-        /// <param name="end">Last index of the orders to be fetched. Note that end - start must be less than 100</param>
+        /// <param name="start">Starting index of the orders to be fetched</param>
+        /// <param name="end">Last index of the orders to be fetched. Note that end - start must be less than or equal to 100.
+        /// If 0, it defaults to start + 100</param>
         /// <remarks>Will throw an <see cref="WebException"/> if there are any API errors</remarks>
-        /// <returns>The list of <see cref="Order"/></returns>
-
-        public List<ApiOrderResponse> ReadBacktestOrders(int projectId, string backtestId, int start = 0, int end = 100)
+        /// <returns><see cref="OrdersResponseWrapper"/> holding the requested orders and the total order count</returns>
+        /// <exception cref="ArgumentException">The requested window is larger than 100 orders</exception>
+        public OrdersResponseWrapper ReadBacktestOrders(int projectId, string backtestId, int start = 0, int end = 0)
         {
+            end = GetPageEnd("orders", start, end);
+
             using var request = ApiUtils.CreateJsonPostRequest("backtests/orders/read", new
             {
                 start,
@@ -427,7 +432,20 @@ namespace QuantConnect.Api
                 backtestId
             });
 
-            return MakeRequestOrThrow<OrdersResponseWrapper>(request, nameof(ReadBacktestOrders)).Orders;
+            return MakeRequestOrThrow<OrdersResponseWrapper>(request, nameof(ReadBacktestOrders));
+        }
+
+        /// <summary>
+        /// Returns every order of the specified backtest and project id, lazily paging through the
+        /// collection in windows of <see cref="MaxPageSize"/> orders
+        /// </summary>
+        /// <param name="projectId">Id of the project from which to read the orders</param>
+        /// <param name="backtestId">Id of the backtest from which to read the orders</param>
+        /// <remarks>Enumerating the result will throw a <see cref="WebException"/> if any page request fails</remarks>
+        /// <returns>The backtest orders</returns>
+        public IEnumerable<ApiOrderResponse> ReadAllBacktestOrders(int projectId, string backtestId)
+        {
+            return ReadAllPages<ApiOrderResponse>((start, end) => ReadBacktestOrders(projectId, backtestId, start, end));
         }
 
         /// <summary>
@@ -536,19 +554,24 @@ namespace QuantConnect.Api
         /// <exception cref="ArgumentException"></exception>
         public InsightResponse ReadBacktestInsights(int projectId, string backtestId, int start = 0, int end = 0)
         {
-            //var reque
-            var diff = end - start;
-            if (diff > 100)
-            {
-                throw new ArgumentException($"The difference between the start and end index of the insights must be smaller than 100, but it was {diff}.");
-            }
-            else if (end == 0)
-            {
-                end = start + 100;
-            }
+            end = GetPageEnd("insights", start, end);
 
             TryJsonPost("backtests/insights/read", out InsightResponse result, new { projectId, backtestId, start, end });
             return result;
+        }
+
+        /// <summary>
+        /// Returns every insight of the specified backtest, lazily paging through the collection
+        /// in windows of <see cref="MaxPageSize"/> insights
+        /// </summary>
+        /// <param name="projectId">Id of the project from which to read the backtest</param>
+        /// <param name="backtestId">Backtest id from which we want to get the insights</param>
+        /// <remarks>Enumerating the result will throw a <see cref="WebException"/> if any page request fails</remarks>
+        /// <returns>The backtest insights</returns>
+        public IEnumerable<Insight> ReadAllBacktestInsights(int projectId, string backtestId)
+        {
+            return ReadAllPages<Insight>((start, end) => ThrowIfFailed(
+                ReadBacktestInsights(projectId, backtestId, start, end), nameof(ReadAllBacktestInsights)));
         }
 
         /// <summary>
@@ -683,13 +706,16 @@ namespace QuantConnect.Api
         /// Returns the orders of the specified project id live algorithm.
         /// </summary>
         /// <param name="projectId">Id of the project from which to read the live orders</param>
-        /// <param name="start">Starting index of the orders to be fetched. Required if end > 100</param>
-        /// <param name="end">Last index of the orders to be fetched. Note that end - start must be less than 100</param>
+        /// <param name="start">Starting index of the orders to be fetched</param>
+        /// <param name="end">Last index of the orders to be fetched. Note that end - start must be less than or equal to 100.
+        /// If 0, it defaults to start + 100</param>
         /// <remarks>Will throw an <see cref="WebException"/> if there are any API errors</remarks>
-        /// <returns>The list of <see cref="Order"/></returns>
-
-        public List<ApiOrderResponse> ReadLiveOrders(int projectId, int start = 0, int end = 100)
+        /// <returns><see cref="OrdersResponseWrapper"/> holding the requested orders and the total order count</returns>
+        /// <exception cref="ArgumentException">The requested window is larger than 100 orders</exception>
+        public OrdersResponseWrapper ReadLiveOrders(int projectId, int start = 0, int end = 0)
         {
+            end = GetPageEnd("orders", start, end);
+
             using var request = ApiUtils.CreateJsonPostRequest("live/orders/read", new
             {
                 start,
@@ -697,7 +723,19 @@ namespace QuantConnect.Api
                 projectId
             });
 
-            return MakeRequestOrThrow<OrdersResponseWrapper>(request, nameof(ReadLiveOrders)).Orders;
+            return MakeRequestOrThrow<OrdersResponseWrapper>(request, nameof(ReadLiveOrders));
+        }
+
+        /// <summary>
+        /// Returns every order of the specified project id live algorithm, lazily paging through the
+        /// collection in windows of <see cref="MaxPageSize"/> orders
+        /// </summary>
+        /// <param name="projectId">Id of the project from which to read the live orders</param>
+        /// <remarks>Enumerating the result will throw a <see cref="WebException"/> if any page request fails</remarks>
+        /// <returns>The live algorithm orders</returns>
+        public IEnumerable<ApiOrderResponse> ReadAllLiveOrders(int projectId)
+        {
+            return ReadAllPages<ApiOrderResponse>((start, end) => ReadLiveOrders(projectId, start, end));
         }
 
         /// <summary>
@@ -822,18 +860,23 @@ namespace QuantConnect.Api
         /// <exception cref="ArgumentException"></exception>
         public InsightResponse ReadLiveInsights(int projectId, int start = 0, int end = 0)
         {
-            var diff = end - start;
-            if (diff > 100)
-            {
-                throw new ArgumentException($"The difference between the start and end index of the insights must be smaller than 100, but it was {diff}.");
-            }
-            else if (end == 0)
-            {
-                end = start + 100;
-            }
+            end = GetPageEnd("insights", start, end);
 
             TryJsonPost("live/insights/read", out InsightResponse result, new { projectId, start, end });
             return result;
+        }
+
+        /// <summary>
+        /// Returns every insight of the specified project id live algorithm, lazily paging through the
+        /// collection in windows of <see cref="MaxPageSize"/> insights
+        /// </summary>
+        /// <param name="projectId">Id of the project from which to read the live algorithm</param>
+        /// <remarks>Enumerating the result will throw a <see cref="WebException"/> if any page request fails</remarks>
+        /// <returns>The live algorithm insights</returns>
+        public IEnumerable<Insight> ReadAllLiveInsights(int projectId)
+        {
+            return ReadAllPages<Insight>((start, end) => ThrowIfFailed(
+                ReadLiveInsights(projectId, start, end), nameof(ReadAllLiveInsights)));
         }
 
         /// <summary>
@@ -1490,17 +1533,76 @@ namespace QuantConnect.Api
         private T MakeRequestOrThrow<T>(HttpRequestMessage request, string callerName)
             where T : RestResponse
         {
-            if (!ApiConnection.TryRequest(request, out T result))
+            // TryRequest fails exactly when the response is missing or unsuccessful
+            ApiConnection.TryRequest(request, out T result);
+            return ThrowIfFailed(result, callerName);
+        }
+
+        /// <summary>
+        /// Helper method that will throw a <see cref="WebException"/> if the given api response is missing or unsuccessful
+        /// </summary>
+        private static T ThrowIfFailed<T>(T response, string callerName)
+            where T : RestResponse
+        {
+            if (response != null && response.Success)
             {
-                var errors = string.Empty;
-                if (result != null && result.Errors != null && result.Errors.Count > 0)
-                {
-                    errors = $". Errors: ['{string.Join(",", result.Errors)}']";
-                }
-                throw new WebException($"{callerName} api request failed{errors}");
+                return response;
             }
 
-            return result;
+            var errors = string.Empty;
+            if (response != null && response.Errors != null && response.Errors.Count > 0)
+            {
+                errors = $". Errors: ['{string.Join(",", response.Errors)}']";
+            }
+            throw new WebException($"{callerName} api request failed{errors}");
+        }
+
+        /// <summary>
+        /// Validates a paging window of at most <see cref="MaxPageSize"/> items and returns the end index,
+        /// defaulting an unset end (0) to a full page from start
+        /// </summary>
+        private static int GetPageEnd(string itemsName, int start, int end)
+        {
+            var diff = end - start;
+            if (diff > MaxPageSize)
+            {
+                throw new ArgumentException($"The difference between the start and end index of the {itemsName} must be smaller than {MaxPageSize}, but it was {diff}.");
+            }
+            return end == 0 ? start + MaxPageSize : end;
+        }
+
+        /// <summary>
+        /// Lazily enumerates a paged collection, requesting <see cref="MaxPageSize"/> items at a time
+        /// </summary>
+        private static IEnumerable<T> ReadAllPages<T>(Func<int, int, IPagedResponse<T>> readPage)
+        {
+            var start = 0;
+            int length;
+            do
+            {
+                var page = readPage(start, start + MaxPageSize);
+                length = page.Length;
+
+                var count = page.Items?.Count ?? 0;
+                if (count == 0)
+                {
+                    if (start < length)
+                    {
+                        throw new InvalidOperationException(
+                            $"Received an empty page at index {start} while the collection holds {length} items.");
+                    }
+                    break;
+                }
+
+                foreach (var item in page.Items)
+                {
+                    yield return item;
+                }
+
+                // the api might take the end index as inclusive, so advance by what was actually received
+                start += count;
+            }
+            while (start < length);
         }
 
         /// <summary>

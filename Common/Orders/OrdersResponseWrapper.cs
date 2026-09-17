@@ -23,7 +23,7 @@ namespace QuantConnect.Orders
     /// <summary>
     /// Collection container for a list of orders for a project
     /// </summary>
-    public class OrdersResponseWrapper : RestResponse
+    public class OrdersResponseWrapper : RestResponse, IPagedResponse<ApiOrderResponse>
     {
         /// <summary>
         /// Returns the total order collection length, not only the amount we are sending here
@@ -36,6 +36,8 @@ namespace QuantConnect.Orders
         /// </summary>
         [JsonProperty(PropertyName = "orders")]
         public List<ApiOrderResponse> Orders { get; set; } = new();
+
+        List<ApiOrderResponse> IPagedResponse<ApiOrderResponse>.Items => Orders;
     }
 
     /// <summary>
