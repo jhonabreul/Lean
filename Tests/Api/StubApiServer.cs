@@ -142,7 +142,7 @@ namespace QuantConnect.Tests.API
             return new CapturedRequest
             {
                 Path = header.Split("\r\n")[0].Split(' ')[1],
-                Body = JObject.Parse(Encoding.UTF8.GetString(body.ToArray()))
+                Body = body.Count == 0 ? null : JObject.Parse(Encoding.UTF8.GetString(body.ToArray()))
             };
         }
 

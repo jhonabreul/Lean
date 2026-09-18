@@ -276,7 +276,7 @@ namespace QuantConnect.Tests.API
             using var api = new Api.Api();
             api.Initialize(0, "token", Globals.DataFolder);
 
-            Assert.Throws<ArgumentException>(() => api.ReadLiveInsights(23456789, 0, 101));
+            Assert.Throws<ArgumentException>(() => api.ReadLiveInsights(23456789, start: 0, end: 101));
         }
 
         [TestCase(0, 100)]
