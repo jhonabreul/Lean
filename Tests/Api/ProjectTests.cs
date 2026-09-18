@@ -555,19 +555,19 @@ namespace QuantConnect.Algorithm.CSharp
                 Assert.IsTrue(stopLive.Success, $"ApiClient.StopLiveAlgorithm(): Error: {string.Join(",", stopLive.Errors)}");
 
                 // Try to read the insights from the algorithm
-                var readInsights = ApiClient.ReadLiveInsights(projectId, 0, 5);
+                var readInsights = ApiClient.ReadLiveInsights(projectId, start: 0, end: 5);
                 var finish = DateTime.UtcNow.AddMinutes(2);
                 do
                 {
                     Thread.Sleep(5000);
-                    readInsights = ApiClient.ReadLiveInsights(projectId, 0, 5);
+                    readInsights = ApiClient.ReadLiveInsights(projectId, start: 0, end: 5);
                 }
                 while (finish > DateTime.UtcNow && !readInsights.Insights.Any());
 
                 Assert.IsTrue(readInsights.Success, $"ApiClient.ReadLiveInsights(): Error: {string.Join(",", readInsights.Errors)}");
                 Assert.IsNotEmpty(readInsights.Insights);
                 Assert.IsTrue(readInsights.Length >= 0);
-                Assert.Throws<ArgumentException>(() => ApiClient.ReadLiveInsights(projectId, 0, 101));
+                Assert.Throws<ArgumentException>(() => ApiClient.ReadLiveInsights(projectId, start: 0, end: 101));
                 Assert.DoesNotThrow(() => ApiClient.ReadLiveInsights(projectId));
             }
             catch (Exception ex)
