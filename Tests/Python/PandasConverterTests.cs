@@ -765,13 +765,13 @@ def Test4(dataFrame):
                 .ToArray();
             var expected = Enumerable.Range(0, 10).Select(i => (double)(firstValue + i)).ToList();
 
-            using var dataFrame = (PyObject)_converter.GetDataFrame(GetHistory(symbol, Resolution.Minute, rawBars));
-
             SymbolCache.Set(symbol.Value, symbol);
             SymbolCache.Set(ticker, tickerSymbol);
 
             using (Py.GIL())
             {
+                // Declared inside the GIL so it is disposed before the GIL is released
+                using var dataFrame = (PyObject)_converter.GetDataFrame(GetHistory(symbol, Resolution.Minute, rawBars));
                 using var module = PyModule.FromString("testModule",
                     @"
 def SymbolAndColumn(dataFrame, key, column):
