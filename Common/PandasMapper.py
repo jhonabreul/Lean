@@ -70,31 +70,25 @@ def mapper(key):
 
 def wrap_keyerror_function(f):
     '''Wraps function f with wrapped_function, used for functions that throw KeyError when not found.
-    wrapped_function converts the args / kwargs to use alternative index keys and then calls the function.
-    If this fails we fall back to the original key and try it as well, if they both fail we throw our error.
+    wrapped_function calls the function with the original args / kwargs first. If this fails, it converts them
+    to use alternative index keys and tries again, if they both fail we throw our error.
     If there is nothing to convert, the original error is thrown as is.
     '''
     def wrapped_function(*args, **kwargs):
-        # Map args & kwargs and execute function
+        # Execute original first, so keys that exist (e.g. a column named like a ticker) are never mapped
         try:
-            newargs = args
-            newkwargs = kwargs
-
-            if len(args) > 1:
-                newargs = mapper(args)
-            if len(kwargs) > 0:
-                newkwargs = mapper(kwargs)
-
-            return f(*newargs, **newkwargs)
+            return f(*args, **kwargs)
         except KeyError as e:
+            # Map args & kwargs, allows for df, Series, etc indexing for keys like 'SPY'
+            newargs = mapper(args) if len(args) > 1 else args
+            newkwargs = mapper(kwargs) if len(kwargs) > 0 else kwargs
+
             # No key was mapped, so the original error already tells what is missing
             if newargs is args and newkwargs is kwargs:
                 raise
 
-        # Execute original
-        # Allows for df, Series, etc indexing for keys like 'SPY' if they exist
         try:
-            return f(*args, **kwargs)
+            return f(*newargs, **newkwargs)
         except KeyError as e:
             mKey = [str(arg) for arg in newargs if isinstance(arg, str) or isinstance(arg, Symbol)]
             oKey = [str(arg) for arg in args if isinstance(arg, str) or isinstance(arg, Symbol)]

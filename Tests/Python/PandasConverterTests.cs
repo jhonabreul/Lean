@@ -744,6 +744,90 @@ def Test4(dataFrame):
             }
         }
 
+        [TestCase("OPEN", "open", 10, false)]
+        [TestCase("HIGH", "high", 30, false)]
+        [TestCase("LOW", "low", 5, false)]
+        [TestCase("CLOSE", "close", 20, false)]
+        [TestCase("VOLUME", "volume", 1000, false)]
+        [TestCase("OPEN", "open", 10, true)]
+        [TestCase("HIGH", "high", 30, true)]
+        [TestCase("LOW", "low", 5, true)]
+        [TestCase("CLOSE", "close", 20, true)]
+        [TestCase("VOLUME", "volume", 1000, true)]
+        public void IndexesColumnNamedAsCachedTicker(string ticker, string column, int firstValue, bool frameHoldsTicker)
+        {
+            var tickerSymbol = Symbol.Create(ticker, SecurityType.Equity, Market.USA);
+            var symbol = frameHoldsTicker ? tickerSymbol : Symbols.SPY;
+
+            var rawBars = Enumerable
+                .Range(0, 10)
+                .Select(i => new TradeBar(new DateTime(2020, 1, 2, 9, 30, 0).AddMinutes(i), symbol, 10 + i, 30 + i, 5 + i, 20 + i, 1000 + i))
+                .ToArray();
+            var expected = Enumerable.Range(0, 10).Select(i => (double)(firstValue + i)).ToList();
+
+            using var dataFrame = (PyObject)_converter.GetDataFrame(GetHistory(symbol, Resolution.Minute, rawBars));
+
+            SymbolCache.Set(symbol.Value, symbol);
+            SymbolCache.Set(ticker, tickerSymbol);
+
+            using (Py.GIL())
+            {
+                using var module = PyModule.FromString("testModule",
+                    @"
+def SymbolAndColumn(dataFrame, key, column):
+    return dataFrame.loc[key, column].tolist()
+def SymbolThenColumn(dataFrame, key, column):
+    return dataFrame.loc[key][column].tolist()
+def Column(dataFrame, column):
+    return dataFrame[column].tolist()
+def ColumnAttribute(dataFrame, column):
+    return getattr(dataFrame, column).tolist()
+def AllRowsAndColumn(dataFrame, column):
+    return dataFrame.loc[:, column].tolist()");
+
+                using var pySymbol = symbol.ToPython();
+                using var pyTicker = symbol.Value.ToPython();
+                using var pyColumn = column.ToPython();
+
+                List<double> Run(string function, params PyObject[] args)
+                {
+                    using var result = module.GetAttr(function).Invoke(new[] { dataFrame }.Concat(args).ToArray());
+                    return result.As<List<double>>();
+                }
+
+                CollectionAssert.AreEqual(expected, Run("SymbolAndColumn", pySymbol, pyColumn));
+                CollectionAssert.AreEqual(expected, Run("SymbolAndColumn", pyTicker, pyColumn));
+                CollectionAssert.AreEqual(expected, Run("SymbolThenColumn", pySymbol, pyColumn));
+                CollectionAssert.AreEqual(expected, Run("SymbolThenColumn", pyTicker, pyColumn));
+                CollectionAssert.AreEqual(expected, Run("Column", pyColumn));
+                CollectionAssert.AreEqual(expected, Run("ColumnAttribute", pyColumn));
+                CollectionAssert.AreEqual(expected, Run("AllRowsAndColumn", pyColumn));
+            }
+        }
+
+        [Test]
+        public void LiteralKeyTakesPrecedenceOverCachedTicker()
+        {
+            SymbolCache.Set("SPY", Symbols.SPY);
+
+            using (Py.GIL())
+            {
+                using var module = PyModule.FromString("testModule",
+                    @"
+import pandas as pd
+import PandasMapper
+
+def Test(symbol):
+    dataFrame = pd.DataFrame({'SPY': [1.0], symbol: [2.0]})
+    return dataFrame['SPY'].tolist() + dataFrame[symbol].tolist()");
+
+                using var pySymbol = Symbols.SPY.ToPython();
+                using var result = module.GetAttr("Test").Invoke(pySymbol);
+
+                CollectionAssert.AreEqual(new[] { 1.0, 2.0 }, result.As<List<double>>());
+            }
+        }
+
         [TestCase("dataFrame['opne']", "'opne'")]
         [TestCase("dataFrame.loc[symbol, 'opne']", "'opne'")]
         [TestCase("dataFrame.loc[symbol].loc[[pd.Timestamp(1999, 1, 1)]]", "1999-01-01")]
